@@ -14,7 +14,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from .. import engine, history, startup
+from .. import engine, history, settings, startup
 from .. import hotkey as hk
 from . import style
 
@@ -60,6 +60,7 @@ class Bridge(QObject):
             "theme": a.theme_setting,
             "resolvedTheme": a.theme,
             "startup": startup.enabled(),
+            "options": {k: a.settings[k] for k in settings.OPTIONS},
         })
 
     @Slot(result=str)
@@ -91,6 +92,11 @@ class Bridge(QObject):
     @Slot(str)
     def setTheme(self, setting: str):
         self.app.set_theme(setting)
+
+    @Slot(str, str)
+    def setOption(self, key: str, value: str):
+        """Changes a setting; the value comes as JSON."""
+        self.app.set_option(key, json.loads(value))
 
     @Slot(bool)
     def setStartup(self, on: bool):

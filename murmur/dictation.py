@@ -163,8 +163,10 @@ class Dictation:
         on_silent: Callable[[], None] = lambda: None,
         on_auto_stop: Callable[[], None] = lambda: None,
         device=None,
+        tidy: Callable[[str], str] = cleanup.tidy,
     ):
         self.rec = rec
+        self.tidy = tidy
         self.on_levels = on_levels
         self.on_done = on_done
         self.on_error = on_error
@@ -317,6 +319,6 @@ class Dictation:
             return
 
         t0 = time.perf_counter()
-        text = cleanup.tidy(session.text())
+        text = self.tidy(session.text())
         latency_ms = int((time.perf_counter() - t0) * 1000)
         self.on_done(text, session.samples * 1000 // SR, latency_ms)

@@ -97,6 +97,13 @@ function applyState(s) {
   $("[data-speed]").disabled = s.status !== "ready" || speedRunning;
   applyTheme(s.theme, s.resolvedTheme);
   $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
+  $$("[data-option]").forEach((b) => setSwitch(b, s.options[b.dataset.option]));
+}
+
+// Settings saved as they change. Values go to Murmur as JSON.
+function setOption(key, value) {
+  state.options[key] = value;
+  bridge.setOption(key, JSON.stringify(value));
 }
 
 function setSwitch(el, on) { el.setAttribute("aria-checked", !!on); }
@@ -509,6 +516,7 @@ function wire() {
   wireRadios($('[data-radios="theme"]'), (theme) => bridge.setTheme(theme));
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $$("[data-startup]").forEach((b) => (b.onclick = () => setStartup(!isOn(b))));
+  $$("[data-option]").forEach((b) => (b.onclick = () => { setSwitch(b, !isOn(b)); setOption(b.dataset.option, isOn(b)); }));
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-repo]").onclick = () => bridge.openRepo();
   $("[data-greeting]").textContent = greeting();
@@ -556,6 +564,7 @@ function sampleBridge() {
   const stateChanged = signal(), startupChanged = signal();
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false;
+  const options = { remove_fillers: true, digits: true };
   const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
   light.addEventListener("change", () => stateChanged.emit());
   const now = Date.now(), m = 60000, d = 86400000;
@@ -572,8 +581,9 @@ function sampleBridge() {
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
-      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(), startup,
+      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(), startup, options,
     })),
+    setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
     setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),

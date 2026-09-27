@@ -17,7 +17,7 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, logfile, settings, spacing
+from . import dictation, engine, history, hotkey, inserter, logfile, pipeline, settings, spacing
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -143,6 +143,7 @@ class App(QObject):
         self.dictation = dictation.Dictation(
             rec, on_levels=self.levels.emit, on_done=self.done.emit, on_error=self.error.emit,
             on_silent=self.silent.emit, on_auto_stop=self.auto_stopped.emit,
+            tidy=lambda text: pipeline.process(text, self.settings),
         )
         self.loaded.emit(time.perf_counter() - t0)
 
@@ -273,6 +274,14 @@ class App(QObject):
         self.pill.set_hint(self._hint())
         self._update_tray()
         self.hotkey_changed.emit(self.hotkey)
+
+    def set_option(self, key: str, value):
+        """A setting from the window (see settings.OPTIONS). Dictation reads them as it goes."""
+        if not settings.valid(key, value):
+            return
+        self.settings[key] = value
+        settings.save(self.settings)
+        self.status_changed.emit()
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting
