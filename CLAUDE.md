@@ -31,7 +31,13 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   and AltGr's fake Left Ctrl are ignored.
 - `inserter.py`: clipboard paste + restore, SendInput Unicode typing fallback.
 - `pill.py`: Wispr-Flow-style bar (no live text by design). Spring-animated; masked so only the
-  pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus.
+  pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus. A check mark after
+  inserting; messages can take a click action.
+- `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
+  (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
+  EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min.
+- `logfile.py`: `~/.murmur/murmur.log` (rotating 1 MB x 2) plus sys/threading excepthooks. Never
+  log dictated text or keystrokes.
 - `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,
   no build step); `Bridge` is exposed over QWebChannel as `murmur`. `app.js` falls back to sample
   data outside Qt, so `ui/web` can be previewed with `python -m http.server`.
@@ -56,3 +62,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   AppData writes into its sandbox. The repo's own `.venv` is for development.
 - Windows PowerShell 5.1 reads files as ANSI: don't round-trip source files through
   Get-Content/Set-Content (it garbles "…" and "₹").
+- UIPI drops SendInput into apps of higher integrity (run as administrator): `inserter.paste`
+  compares token integrity levels and copies instead. OpenProcessToken(TOKEN_QUERY) works on
+  elevated processes from a normal one.
+- The laptop mic (Realtek array, MME) opens in 40-75 ms, then fades in over ~300 ms; the stream
+  is kept open 10 s after a dictation (`MIC_KEEP_OPEN_S`) so back-to-back ones aren't clipped.
+- Classic Win32 Edit controls have no UIA TextPattern (only Value); RichEdit does.
