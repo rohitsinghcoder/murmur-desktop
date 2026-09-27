@@ -21,9 +21,16 @@ WIN_W, WIN_H = 420, 64
 BOTTOM_GAP = 10  # between the pill and the taskbar
 BARS = 9
 BAR_W, BAR_GAP = 3.0, 3.0
-BAR_MIN, BAR_MAX = 3.0, 18.0
+BAR_MIN, BAR_MAX = 3.0, 22.0
 # Taller bars in the middle, like a voice waveform.
-PROFILE = [0.45, 0.62, 0.8, 0.94, 1.0, 0.94, 0.8, 0.62, 0.45]
+PROFILE = [0.5, 0.66, 0.82, 0.95, 1.0, 0.95, 0.82, 0.66, 0.5]
+# Automatic gain: bars are scaled to the loudest recent speech, so a quiet mic still moves them,
+# but never by more than this much (room noise must stay flat).
+GAIN_FLOOR = 0.35
+# Levels below this (about -47 dB: fans, keyboard) leave the bars flat.
+GATE = 0.1
+# Each bar gets a new random share of the level this often, so they move independently.
+JITTER_S = 0.09
 
 BG = QColor(8, 8, 10, 242)
 BORDER = QColor(255, 255, 255, 40)
@@ -86,8 +93,9 @@ class Pill(QWidget):
         self.smooth_level = 0.0
         self.w, self.h = Spring(SIZES["rest"][0]), Spring(SIZES["rest"][1])
         self.bars = [BAR_MIN] * BARS
-        self.phases = [random.uniform(0, math.tau) for _ in range(BARS)]
-        self.speeds = [random.uniform(5.0, 9.0) for _ in range(BARS)]
+        self.peak = GAIN_FLOOR
+        self.jitter = [1.0] * BARS
+        self.next_jitter = 0.0
         self.t = 0.0
         self._last = time.perf_counter()
         self._mask = QRect()
@@ -111,6 +119,7 @@ class Pill(QWidget):
         self.state = "handsfree" if hands_free else "record"
         self.hover = False
         self.level = self.smooth_level = 0.0
+        self.peak = GAIN_FLOOR
         self._move_to_cursor_screen()
         self._retarget()
 
@@ -121,8 +130,7 @@ class Pill(QWidget):
 
     def set_level(self, levels: list[float]):
         if levels:
-            # Mic levels are squared for the meter; the square root reads better as bar height.
-            self.level = math.sqrt(levels[-1])
+            self.level = levels[-1]
 
     def processing(self):
         if self.state in ("record", "handsfree"):
@@ -192,15 +200,22 @@ class Pill(QWidget):
         self.h.step(dt)
 
         # Fast attack, slower release, like a VU meter.
-        rate = 30.0 if self.level > self.smooth_level else 9.0
+        rate = 35.0 if self.level > self.smooth_level else 10.0
         self.smooth_level += (self.level - self.smooth_level) * (1 - math.exp(-rate * dt))
+        # The gain follows the loudest recent speech: up at once, back down over a few seconds.
+        self.peak = max(self.smooth_level, GAIN_FLOOR + (self.peak - GAIN_FLOOR) * math.exp(-0.4 * dt))
+        loudness = min(1.0, max(0.0, self.smooth_level - GATE) / (self.peak - GATE))
+        if self.t >= self.next_jitter:
+            self.next_jitter = self.t + JITTER_S
+            self.jitter = [random.uniform(0.45, 1.0) for _ in range(BARS)]
         for i in range(BARS):
             if self.state in ("record", "handsfree"):
-                wobble = 0.72 + 0.28 * math.sin(self.t * self.speeds[i] + self.phases[i])
-                target = BAR_MIN + (BAR_MAX - BAR_MIN) * min(1.0, self.smooth_level * PROFILE[i] * wobble * 1.25)
+                target = BAR_MIN + (BAR_MAX - BAR_MIN) * loudness * PROFILE[i] * self.jitter[i]
             else:
                 target = BAR_MIN
-            self.bars[i] += (target - self.bars[i]) * (1 - math.exp(-22 * dt))
+            # Bars jump up quickly and settle back more slowly.
+            speed = 26.0 if target > self.bars[i] else 12.0
+            self.bars[i] += (target - self.bars[i]) * (1 - math.exp(-speed * dt))
 
         self._update_mask()
         self.update()

@@ -182,37 +182,88 @@ function renderHistory() {
   }
 }
 
+// A row: click anywhere to copy. Hover shows a labelled Copy button; delete is kept apart, in the
+// menu behind "More" or a right-click, so it can't be hit by accident.
 function entryRow(e, when, i) {
   const row = document.createElement("div");
   row.className = "entry";
+  row.tabIndex = 0;
   row.style.animationDelay = `${Math.min(i, 12) * 18}ms`;
   row.innerHTML = `
     <div class="entry-time"></div>
     <div><div class="entry-text"></div><div class="entry-meta"></div></div>
     <div class="entry-actions">
-      <button class="icon-btn" title="Copy" data-act="copy">${svg("copy", 16)}</button>
-      <button class="icon-btn danger" title="Delete" data-act="delete">${svg("trash", 16)}</button>
+      <button class="copy-btn" data-act="copy" tabindex="-1"></button>
+      <button class="icon-btn" data-act="more" title="More" tabindex="-1">${svg("more", 18)}</button>
     </div>`;
   $(".entry-time", row).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
   $(".entry-text", row).textContent = e.text;
   const meta = [appName(e.app), e.audioMs ? duration(e.audioMs) : ""].filter(Boolean);
   $(".entry-meta", row).textContent = meta.join(" · ");
 
-  const copy = $('[data-act="copy"]', row);
-  copy.onclick = () => {
+  const copyBtn = $('[data-act="copy"]', row);
+  const copyLabel = (done) => (copyBtn.innerHTML = `${svg(done ? "check" : "copy", 15)}<span>${done ? "Copied" : "Copy"}</span>`);
+  copyLabel(false);
+
+  const copy = () => {
     bridge.copy(e.text);
-    copy.classList.add("done");
-    copy.innerHTML = svg("check", 16);
+    row.classList.add("copied");
+    copyLabel(true);
     toast("Copied to clipboard");
-    setTimeout(() => { copy.classList.remove("done"); copy.innerHTML = svg("copy", 16); }, 1400);
+    clearTimeout(row.copiedTimer);
+    row.copiedTimer = setTimeout(() => { row.classList.remove("copied"); copyLabel(false); }, 1600);
   };
-  $('[data-act="delete"]', row).onclick = () => {
-    row.style.maxHeight = `${row.offsetHeight}px`;
-    requestAnimationFrame(() => row.classList.add("removing"));
-    setTimeout(() => { entries = entries.filter((x) => x.time !== e.time); bridge.deleteEntry(e.time); }, 280);
+  const remove = () => {
+    row.classList.add("removing");
+    setTimeout(() => { entries = entries.filter((x) => x.time !== e.time); bridge.deleteEntry(e.time); }, 250);
     toast("Deleted");
   };
+  const items = [{ label: "Copy", icon: "copy", action: copy }, { label: "Delete", icon: "trash", danger: true, action: remove }];
+
+  row.addEventListener("click", (ev) => {
+    if (ev.target.closest('[data-act="more"]')) return;
+    if (String(getSelection()).trim()) return; // selecting text, not copying it
+    copy();
+  });
+  $('[data-act="more"]', row).addEventListener("click", (ev) => {
+    const r = ev.currentTarget.getBoundingClientRect();
+    openMenu(r.right, r.bottom + 6, items, true);
+  });
+  row.addEventListener("contextmenu", (ev) => { ev.preventDefault(); openMenu(ev.clientX, ev.clientY, items); });
+  row.addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter") { ev.preventDefault(); copy(); }
+    if (ev.key === "ContextMenu" || (ev.shiftKey && ev.key === "F10")) {
+      ev.preventDefault();
+      const r = row.getBoundingClientRect();
+      openMenu(r.right - 12, r.top + 12, items, true);
+    }
+  });
   return row;
+}
+
+// A small menu at a point (or, with alignRight, ending at it).
+function openMenu(x, y, items, alignRight = false) {
+  const menu = $("[data-menu]");
+  menu.replaceChildren(...items.map((item) => {
+    const b = document.createElement("button");
+    if (item.danger) b.className = "danger";
+    b.innerHTML = `${svg(item.icon, 16)}<span>${esc(item.label)}</span>`;
+    b.onclick = () => { closeMenu(); item.action(); };
+    return b;
+  }));
+  menu.hidden = false;
+  const { width, height } = menu.getBoundingClientRect();
+  const left = alignRight ? x - width : x;
+  menu.style.left = `${Math.max(8, Math.min(left, innerWidth - width - 8))}px`;
+  menu.style.top = `${Math.max(8, Math.min(y, innerHeight - height - 8))}px`;
+  menu.classList.remove("open");
+  requestAnimationFrame(() => menu.classList.add("open"));
+  menu.querySelector("button").focus();
+}
+
+function closeMenu() {
+  const menu = $("[data-menu]");
+  if (!menu.hidden) { menu.hidden = true; menu.classList.remove("open"); }
 }
 
 // Settings: the shortcut.
@@ -290,8 +341,23 @@ function wire() {
   // The try-it box is one line and grows with what's dictated into it.
   const tryBox = $("[data-try]");
   tryBox.addEventListener("input", () => { tryBox.style.height = "auto"; tryBox.style.height = `${tryBox.scrollHeight}px`; });
+  // The row menu closes on any click outside it, Esc, scrolling or leaving the window.
+  document.addEventListener("mousedown", (e) => { if (!e.target.closest("[data-menu]")) closeMenu(); });
+  document.addEventListener("keydown", (e) => {
+    const menu = $("[data-menu]");
+    if (menu.hidden) return;
+    if (e.key === "Escape") { e.preventDefault(); closeMenu(); }
+    if (e.key === "ArrowDown" || e.key === "ArrowUp") {
+      e.preventDefault();
+      const buttons = $$("button", menu);
+      const at = buttons.indexOf(document.activeElement);
+      buttons[(at + (e.key === "ArrowDown" ? 1 : buttons.length - 1)) % buttons.length].focus();
+    }
+  });
+  $("main").addEventListener("scroll", closeMenu);
+  window.addEventListener("blur", closeMenu);
   // No browser context menu or file drops in an app window.
-  document.addEventListener("contextmenu", (e) => { if (!e.target.closest("textarea, input, .entry-text")) e.preventDefault(); });
+  document.addEventListener("contextmenu", (e) => { if (!e.target.closest("textarea, input")) e.preventDefault(); });
   document.addEventListener("dragover", (e) => e.preventDefault());
   document.addEventListener("drop", (e) => e.preventDefault());
 }

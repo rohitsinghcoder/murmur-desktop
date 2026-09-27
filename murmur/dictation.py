@@ -49,9 +49,9 @@ def db(chunk: np.ndarray) -> float:
 
 
 def level(chunk: np.ndarray) -> float:
-    """Loudness of a chunk mapped to 0..1: room noise stays near 0, normal speech fills it."""
-    x = min(1.0, max(0.0, (db(chunk) + 50) / 40))
-    return x * x
+    """Loudness of a chunk mapped to 0..1: room noise (about -52 dB on a laptop mic) stays at 0,
+    quiet speech (-40 dB) is about 0.3, and loud speech (-20 dB) fills it."""
+    return min(1.0, max(0.0, (db(chunk) + 50) / 30))
 
 
 Tokens = list[tuple[str, float]]
