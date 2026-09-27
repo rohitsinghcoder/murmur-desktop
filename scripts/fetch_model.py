@@ -1,10 +1,10 @@
-"""Downloads the Nemotron speech model (~650 MB) into models/. Safe to re-run."""
+"""Downloads the Parakeet speech model (~460 MB download, ~630 MB unpacked) into models/. Safe to re-run."""
 import sys
 import tarfile
 import urllib.request
 from pathlib import Path
 
-MODEL = "sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25"
+MODEL = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
 URL = f"https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/{MODEL}.tar.bz2"
 MODELS = Path(__file__).resolve().parent.parent / "models"
 
@@ -24,7 +24,7 @@ def main():
     MODELS.mkdir(exist_ok=True)
     archive = MODELS / f"{MODEL}.tar.bz2"
     part = archive.with_suffix(".bz2.part")
-    print(f"Downloading the speech model (~650 MB)...")
+    print("Downloading the speech model (~460 MB)...")
     urllib.request.urlretrieve(URL, part, progress)
     part.replace(archive)
     print("\nUnpacking...")

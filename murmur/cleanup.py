@@ -17,7 +17,7 @@ _spaces = re.compile(r"\s{2,}")
 
 def tidy(text: str) -> str:
     """Everything applied to a transcript: fillers out, numbers as digits."""
-    return numbers.format(remove_fillers(text))
+    return numbers.tidy_digits(numbers.format(remove_fillers(text)))
 
 
 def remove_fillers(text: str) -> str:

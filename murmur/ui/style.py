@@ -1,64 +1,82 @@
-"""Colours, fonts, icons and the stylesheet for Murmur's window. Always dark."""
+"""Murmur's logo, window frame and tray menu style. The window itself is HTML (ui/web)."""
 import ctypes
+import struct
+from pathlib import Path
 
-from PySide6.QtCore import Qt
-from PySide6.QtGui import QColor, QFont, QFontDatabase, QIcon, QPainter, QPainterPath, QPen, QPixmap
+from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
+from PySide6.QtGui import QColor, QFontDatabase, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-BG = "#0e0e10"
-SIDEBAR = "#09090b"
-CARD = "#151518"
-CARD_HOVER = "#1b1b1f"
-BORDER = "#232328"
-TEXT = "#ececef"
-DIM = "#8e8e97"
-FAINT = "#5d5d66"
-ACCENT = "#a996ff"
-DANGER = "#f87171"
-GOOD = "#4ade80"
+BG = "#0d0d0f"
+FONTS = Path(__file__).resolve().parent / "web" / "fonts"
 
-# Windows' own icon font: Segoe Fluent Icons on Windows 11, Segoe MDL2 Assets on Windows 10.
-ICONS = {
-    "home": "", "settings": "", "info": "", "copy": "", "check": "",
-    "delete": "", "search": "", "mic": "", "folder": "", "link": "",
-    "speed": "", "keyboard": "", "lock": "",
-}
+# The logo: five bars of a voice waveform, shaped like an M, on a charcoal tile. The middle bar
+# is the accent, like a recording light. Same drawing as LOGO in web/app.js.
+BAR_HEIGHTS = [0.30, 0.54, 0.34, 0.54, 0.30]
+TILE = "#1d1d20"
+BAR = "#ededee"
+ACCENT = "#e07a50"
+DIMMED = "#6f6f76"  # all bars while the model is loading
 
 
-def icon_font(size: int = 11) -> QFont:
-    families = QFontDatabase.families()
-    family = "Segoe Fluent Icons" if "Segoe Fluent Icons" in families else "Segoe MDL2 Assets"
-    f = QFont(family)
-    f.setPointSize(size)
-    return f
-
-
-def heading_font(size: int) -> QFont:
-    families = QFontDatabase.families()
-    f = QFont("Segoe UI Variable Display" if "Segoe UI Variable Display" in families else "Segoe UI")
-    f.setPointSize(size)
-    f.setWeight(QFont.DemiBold)
-    return f
-
-
-def mic_icon(color: QColor, background: QColor | None = None) -> QIcon:
-    pm = QPixmap(64, 64)
-    pm.fill(Qt.transparent)
-    p = QPainter(pm)
+def logo_image(size: int, gray=False) -> QImage:
+    img = QImage(size, size, QImage.Format_ARGB32_Premultiplied)
+    img.fill(Qt.transparent)
+    p = QPainter(img)
     p.setRenderHint(QPainter.Antialiasing)
-    if background:
-        bg = QPainterPath()
-        bg.addRoundedRect(0, 0, 64, 64, 16, 16)
-        p.fillPath(bg, background)
-        p.translate(8, 8)
-        p.scale(0.75, 0.75)
-    body = QPainterPath()
-    body.addRoundedRect(22, 6, 20, 34, 10, 10)
-    p.fillPath(body, color)
-    p.setPen(QPen(color, 5, Qt.SolidLine, Qt.RoundCap))
-    p.drawArc(13, 16, 38, 34, 180 * 16, 180 * 16)
-    p.drawLine(32, 50, 32, 58)
+    s = float(size)
+    edge = max(1.0, s / 96)
+    tile = QPainterPath()
+    tile.addRoundedRect(QRectF(0, 0, s, s), s * 0.25, s * 0.25)
+    p.fillPath(tile, QColor(TILE))
+    rim = QPainterPath()
+    rim.addRoundedRect(QRectF(edge / 2, edge / 2, s - edge, s - edge), s * 0.25 - edge / 2, s * 0.25 - edge / 2)
+    p.setPen(QPen(QColor(255, 255, 255, 31), edge))
+    p.drawPath(rim)
+
+    w, gap = s * 0.095, s * 0.06
+    x = (s - (5 * w + 4 * gap)) / 2
+    p.setPen(Qt.NoPen)
+    for i, h in enumerate(BAR_HEIGHTS):
+        p.setBrush(QColor(DIMMED if gray else ACCENT if i == 2 else BAR))
+        h *= s
+        p.drawRoundedRect(QRectF(x + i * (w + gap), (s - h) / 2, w, h), w / 2, w / 2)
     p.end()
-    return QIcon(pm)
+    return img
+
+
+def load_fonts():
+    """Registers the bundled Geist fonts with Qt (the web view loads its own copies)."""
+    for name in ("Geist-Variable.ttf", "GeistMono-Variable.ttf"):
+        QFontDatabase.addApplicationFont(str(FONTS / name))
+
+
+def logo_icon(gray=False) -> QIcon:
+    """The logo drawn separately at each size, so small ones (tray, title bar) stay crisp."""
+    icon = QIcon()
+    for size in (16, 20, 24, 32, 40, 48, 64, 128, 256):
+        icon.addPixmap(QPixmap.fromImage(logo_image(size, gray)))
+    return icon
+
+
+def write_ico(path, sizes=(16, 20, 24, 32, 40, 48, 64, 128, 256)):
+    """Writes the logo as a multi-size .ico (PNG-compressed entries), for shortcuts."""
+    images = []
+    for size in sizes:
+        data = QByteArray()
+        buf = QBuffer(data)
+        buf.open(QIODevice.WriteOnly)
+        logo_image(size).save(buf, "PNG")
+        images.append((size, bytes(data)))
+    header = struct.pack("<HHH", 0, 1, len(images))
+    offset = 6 + 16 * len(images)
+    entries, blobs = b"", b""
+    for size, png in images:
+        dim = 0 if size >= 256 else size
+        entries += struct.pack("<BBBBHHII", dim, dim, 0, 0, 1, 32, len(png), offset)
+        offset += len(png)
+        blobs += png
+    with open(path, "wb") as f:
+        f.write(header + entries + blobs)
 
 
 def dark_title_bar(widget):
@@ -72,66 +90,10 @@ def dark_title_bar(widget):
     dwm.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(colorref), ctypes.sizeof(colorref))  # caption (Win 11)
 
 
-STYLESHEET = f"""
-QWidget {{ color: {TEXT}; }}
-#Root, #Page {{ background: {BG}; }}
-#Sidebar {{ background: {SIDEBAR}; border-right: 1px solid {BORDER}; }}
-QLabel {{ background: transparent; }}
-QLabel#Dim {{ color: {DIM}; }}
-QLabel#Faint {{ color: {FAINT}; }}
-QLabel#Group {{ color: {FAINT}; font-size: 8pt; font-weight: 600; letter-spacing: 1px; }}
-QLabel#Error {{ color: {DANGER}; }}
-QLabel#Accent {{ color: {ACCENT}; }}
-QLabel#StatValue {{ font-size: 17pt; font-weight: 600; }}
-QLabel#Chip {{
-    background: #232329; border: 1px solid #34343c; border-bottom: 2px solid #34343c;
-    border-radius: 6px; padding: 2px 8px; font-weight: 600; font-size: 9pt;
-}}
-
-QPushButton#Nav {{
-    text-align: left; padding: 8px 10px; border: none; border-radius: 8px; color: {DIM};
-}}
-QPushButton#Nav:hover {{ background: #141417; color: {TEXT}; }}
-QPushButton#Nav:checked {{ background: #1a1a1f; color: {TEXT}; }}
-QPushButton#Primary {{
-    background: {TEXT}; color: {BG}; border: none; border-radius: 8px; padding: 7px 16px; font-weight: 600;
-}}
-QPushButton#Primary:hover {{ background: #ffffff; }}
-QPushButton#Primary:disabled {{ background: #3a3a40; color: {DIM}; }}
-QPushButton#Secondary {{
-    background: #1c1c21; border: 1px solid {BORDER}; border-radius: 8px; padding: 7px 14px;
-}}
-QPushButton#Secondary:hover {{ background: #232329; }}
-QPushButton#Link {{ background: transparent; border: none; color: {DIM}; padding: 0; }}
-QPushButton#Link:hover {{ color: {TEXT}; }}
-QToolButton#Icon {{
-    background: transparent; border: none; border-radius: 6px; padding: 5px; color: {DIM};
-}}
-QToolButton#Icon:hover {{ background: #26262c; color: {TEXT}; }}
-
-QFrame#Card {{ background: {CARD}; border: 1px solid {BORDER}; border-radius: 12px; }}
-QFrame#Entry {{ background: transparent; border-radius: 8px; }}
-QFrame#Entry:hover {{ background: {CARD_HOVER}; }}
-QFrame#Divider {{ background: {BORDER}; max-height: 1px; min-height: 1px; border: none; }}
-
-QLineEdit {{
-    background: #121215; border: 1px solid {BORDER}; border-radius: 10px; padding: 9px 12px;
-    selection-background-color: #4b3f8f;
-}}
-QLineEdit:focus {{ border: 1px solid #3b3b45; }}
-
-QScrollArea {{ background: transparent; border: none; }}
-QScrollBar:vertical {{ background: transparent; width: 10px; margin: 2px; }}
-QScrollBar::handle:vertical {{ background: #2a2a30; border-radius: 3px; min-height: 30px; }}
-QScrollBar::handle:vertical:hover {{ background: #3a3a42; }}
-QScrollBar::add-line, QScrollBar::sub-line, QScrollBar::add-page, QScrollBar::sub-page {{
-    height: 0; background: none;
-}}
-
-QMenu {{ background: #18181c; border: 1px solid {BORDER}; border-radius: 8px; padding: 4px; }}
-QMenu::item {{ padding: 6px 18px; border-radius: 5px; }}
-QMenu::item:selected {{ background: #26262c; }}
-QMenu::item:disabled {{ color: {DIM}; }}
-QMenu::separator {{ height: 1px; background: {BORDER}; margin: 4px 6px; }}
-QToolTip {{ background: #18181c; color: {TEXT}; border: 1px solid {BORDER}; padding: 4px 6px; }}
+MENU_STYLESHEET = """
+QMenu { background: #161618; color: #ededee; border: 1px solid #27272b; border-radius: 8px; padding: 4px; }
+QMenu::item { padding: 7px 22px 7px 12px; border-radius: 6px; }
+QMenu::item:selected { background: #222226; }
+QMenu::item:disabled { color: #8e8e95; }
+QMenu::separator { height: 1px; background: #27272b; margin: 4px 8px; }
 """

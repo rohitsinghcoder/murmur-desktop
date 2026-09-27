@@ -1,7 +1,8 @@
-"""Owns the streaming speech model (NVIDIA Nemotron Speech Streaming via sherpa-onnx).
+"""Owns the speech model: NVIDIA Parakeet TDT 0.6B v2 (English) via sherpa-onnx.
 
-Port of the Android app's Engine.kt. The model is large (~650 MB), so it is loaded once and
-kept in memory.
+Unlike the Android app's streaming model, Parakeet hears a whole utterance at once, which gives
+clearly better punctuation and no stray capitals where a streaming model split at a pause. The
+model is large (~630 MB), so it is loaded once and kept in memory.
 """
 import threading
 from pathlib import Path
@@ -10,11 +11,12 @@ import numpy as np
 import sherpa_onnx
 
 SAMPLE_RATE = 16000
-MODEL_NAME = "sherpa-onnx-nemotron-speech-streaming-en-0.6b-560ms-int8-2026-04-25"
+MODEL_NAME = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
 MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / MODEL_NAME
+MODEL_LABEL = "NVIDIA Parakeet TDT 0.6B v2 (int8)"
 
 _lock = threading.Lock()
-_recognizer: sherpa_onnx.OnlineRecognizer | None = None
+_recognizer: sherpa_onnx.OfflineRecognizer | None = None
 
 
 def _find(directory: Path, prefix: str) -> Path | None:
@@ -28,67 +30,40 @@ def is_model_installed(directory: Path = MODEL_DIR) -> bool:
     ).exists()
 
 
-def is_loaded() -> bool:
-    return _recognizer is not None
-
-
-def load(num_threads: int = 4, directory: Path = MODEL_DIR) -> sherpa_onnx.OnlineRecognizer:
+def load(num_threads: int = 4, directory: Path = MODEL_DIR) -> sherpa_onnx.OfflineRecognizer:
     global _recognizer
     with _lock:
         if _recognizer is not None:
             return _recognizer
         if not is_model_installed(directory):
             raise FileNotFoundError(f"Speech model not found in {directory}. Run scripts/fetch_model.py.")
-        _recognizer = sherpa_onnx.OnlineRecognizer.from_transducer(
-            tokens=str(directory / "tokens.txt"),
+        _recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
             encoder=str(_find(directory, "encoder")),
             decoder=str(_find(directory, "decoder")),
             joiner=str(_find(directory, "joiner")),
+            tokens=str(directory / "tokens.txt"),
             num_threads=num_threads,
             sample_rate=SAMPLE_RATE,
             feature_dim=128,
-            dither=0.0,
-            # Split long dictation into segments at natural pauses, which keeps each decode
-            # short. The user still decides when dictation ends.
-            enable_endpoint_detection=True,
-            rule1_min_trailing_silence=2.4,
-            rule2_min_trailing_silence=1.2,
-            rule3_min_utterance_length=30.0,
+            model_type="nemo_transducer",
             decoding_method="greedy_search",
             provider="cpu",
         )
         return _recognizer
 
 
-class Transcriber:
-    """One dictation: feed audio in, read the running transcript out."""
+def tokens(rec: sherpa_onnx.OfflineRecognizer, audio: np.ndarray) -> list[tuple[str, float]]:
+    """The recognised pieces of text for 16 kHz mono audio, each with the time (seconds into the
+    audio) it was heard. A piece starting a new word begins with a space, so joining them all
+    gives the text. Call from one thread at a time."""
+    if len(audio) < SAMPLE_RATE // 10:
+        return []
+    stream = rec.create_stream()
+    stream.accept_waveform(SAMPLE_RATE, audio)
+    rec.decode_stream(stream)
+    return list(zip(stream.result.tokens, stream.result.timestamps))
 
-    def __init__(self, rec: sherpa_onnx.OnlineRecognizer):
-        self.rec = rec
-        self.stream = rec.create_stream()
-        self.committed = ""
 
-    def _join(self, tail: str) -> str:
-        return " ".join(s for s in (self.committed, tail) if s.strip())
-
-    def accept(self, samples: np.ndarray) -> str:
-        """Adds audio and returns the transcript so far."""
-        self.stream.accept_waveform(SAMPLE_RATE, samples)
-        while self.rec.is_ready(self.stream):
-            self.rec.decode_stream(self.stream)
-        partial = self.rec.get_result(self.stream).strip()
-        if self.rec.is_endpoint(self.stream):
-            if partial:
-                self.committed = self._join(partial)
-            self.rec.reset(self.stream)
-            return self.committed
-        return self._join(partial)
-
-    def finish(self) -> str:
-        """Flushes the last chunk and returns the final transcript."""
-        # Silence padding lets the streaming encoder emit the final words.
-        self.stream.accept_waveform(SAMPLE_RATE, np.zeros(SAMPLE_RATE * 8 // 10, dtype=np.float32))
-        self.stream.input_finished()
-        while self.rec.is_ready(self.stream):
-            self.rec.decode_stream(self.stream)
-        return self._join(self.rec.get_result(self.stream).strip())
+def transcribe(rec: sherpa_onnx.OfflineRecognizer, audio: np.ndarray) -> str:
+    """Text for a stretch of 16 kHz mono audio. Call from one thread at a time."""
+    return "".join(t for t, _ in tokens(rec, audio)).strip()

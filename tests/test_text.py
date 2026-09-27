@@ -50,3 +50,19 @@ def test_fillers(spoken, typed):
 
 def test_tidy_does_both():
     assert cleanup.tidy("Uh, it's twenty dollars.") == "It's $20."
+
+
+@pytest.mark.parametrize("written, typed", [
+    ("Send it by 3.30pm for 500 rupees.", "Send it by 3:30 PM for ₹500."),
+    ("Meet at 10:15 a.m. tomorrow", "Meet at 10:15 AM tomorrow"),
+    ("See you at 7 p.m. Then dinner.", "See you at 7 PM. Then dinner."),
+    ("It ends at 11 pm.", "It ends at 11 PM."),
+    ("That's Rs. 2,450 in total", "That's ₹2,450 in total"),
+    ("About 25 dollars or 30 euros", "About $25 or €30"),
+    ("Up 50 percent this year", "Up 50% this year"),
+    ("It costs 3.5 million", "It costs 3.5 million"),
+    ("Chapter 13 am I right", "Chapter 13 am I right"),
+    ("Room 4.30 is free", "Room 4.30 is free"),
+])
+def test_tidy_digits(written, typed):
+    assert cleanup.tidy(written) == typed

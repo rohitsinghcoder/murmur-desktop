@@ -11,14 +11,14 @@ import time
 
 import numpy as np
 from PySide6.QtCore import QObject, Signal
-from PySide6.QtGui import QAction, QColor, QFont
+from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from . import dictation, engine, history, hotkey, inserter, settings
 from .pill import Pill
 from .ui import style
-from .ui.window import MainWindow
+from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
 
 INSTANCE = f"MurmurDesktop-{getpass.getuser()}"
 
@@ -60,9 +60,11 @@ class App(QObject):
         self.pill.stop_clicked.connect(self.on_click_stop)
         self.pill.show()
 
-        self.window = MainWindow(self)
+        # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
+        # with Windows it often never is.
+        self.window: MainWindow | None = None
 
-        self.tray = QSystemTrayIcon(style.mic_icon(QColor(150, 150, 160)))
+        self.tray = QSystemTrayIcon(style.logo_icon(gray=True))
         menu = QMenu()
         menu.addAction("Open Murmur", self.show_window)
         self.status_action = QAction(self.status_text, enabled=False)
@@ -100,9 +102,7 @@ class App(QObject):
         try:
             rec = engine.load()
             # Warm-up, so the first real dictation isn't slower.
-            t = engine.Transcriber(rec)
-            t.accept(np.zeros(engine.SAMPLE_RATE, dtype=np.float32))
-            t.finish()
+            engine.transcribe(rec, np.zeros(engine.SAMPLE_RATE, dtype=np.float32))
         except Exception as e:
             self.load_failed.emit(str(e))
             return
@@ -122,7 +122,7 @@ class App(QObject):
     def on_loaded(self, secs: float):
         self.load_secs = secs
         self._set_status("ready", "Ready")
-        self.tray.setIcon(style.mic_icon(QColor(style.ACCENT)))
+        self.tray.setIcon(style.logo_icon())
         self.tray.setToolTip(f"Murmur: hold {hotkey.describe(self.hotkey)} to dictate")
         self.pill.ready(self._hint())
 
@@ -202,18 +202,15 @@ class App(QObject):
     def run_speed_test(self):
         def run():
             import soundfile as sf
-            wav = engine.MODEL_DIR / "test_wavs" / "1.wav"
+            wav = engine.MODEL_DIR / "test_wavs" / "0.wav"
             try:
                 audio, _ = sf.read(wav, dtype="float32")
-                t = engine.Transcriber(engine.load())
                 t0 = time.perf_counter()
-                for i in range(0, len(audio), engine.SAMPLE_RATE // 10):
-                    t.accept(audio[i:i + engine.SAMPLE_RATE // 10])
-                t.finish()
+                self.dictation.transcribe(audio)
                 took = time.perf_counter() - t0
                 secs = len(audio) / engine.SAMPLE_RATE
-                self.speed_result.emit(f"{secs / took:.1f}× faster than real time: {secs:.1f} s of "
-                                       f"speech transcribed in {took:.1f} s.")
+                self.speed_result.emit(f"{secs / took:.0f}× faster than real time: {secs:.1f} s of "
+                                       f"speech transcribed in {took * 1000:.0f} ms.")
             except Exception as e:
                 self.speed_result.emit(f"The speed test failed: {e}")
             finally:
@@ -225,6 +222,8 @@ class App(QObject):
     # Window and tray.
 
     def show_window(self):
+        if self.window is None:
+            self.window = MainWindow(self)
         self.window.bring_to_front()
 
     def _tray_clicked(self, reason):
@@ -248,11 +247,15 @@ class App(QObject):
 
 
 def main():
+    # Its own taskbar identity, so Windows shows Murmur's icon rather than Python's.
+    ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID("Murmur.Desktop")
     qt = QApplication(sys.argv)
     qt.setQuitOnLastWindowClosed(False)
     qt.setApplicationName("Murmur")
-    qt.setFont(QFont("Segoe UI", 10))
-    qt.setStyleSheet(style.STYLESHEET)
+    qt.setWindowIcon(style.logo_icon())
+    style.load_fonts()
+    qt.setFont(QFont("Geist", 10))
+    qt.setStyleSheet(style.MENU_STYLESHEET)
 
     # One Murmur at a time: two keyboard hooks would both dictate. A second launch (Start menu,
     # setup.bat) just brings the running one's window to the front.

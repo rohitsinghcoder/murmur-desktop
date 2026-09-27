@@ -18,6 +18,7 @@ function New-Link($path, $arguments) {
     # pythonw runs without a console window.
     $link.TargetPath = $Python
     $link.Arguments = $arguments
+    $link.IconLocation = Join-Path $root "assets\murmur.ico"
     $link.WorkingDirectory = $root
     $link.Description = "Murmur: private voice typing. Hold Right Ctrl to dictate."
     $link.Save()

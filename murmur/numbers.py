@@ -261,6 +261,32 @@ def _write(items: list[Num], first_word: str, prev: str | None, rest: str) -> tu
     return None
 
 
+_digit_time = re.compile(r"\b(\d{1,2})(?:[.:](\d{2}))?\s?([ap])\.?\s?m(\.)?(?![a-z])", re.IGNORECASE)
+_digit_money = re.compile(r"\b(\d[\d,]*(?:\.\d+)?)\s(rupees?|dollars?|bucks|euros?)\b", re.IGNORECASE)
+_rs = re.compile(r"\b(?:rs\.?|inr)\s?(\d[\d,]*(?:\.\d+)?)\b", re.IGNORECASE)
+_digit_percent = re.compile(r"(\d)\s?(?:percent|per cent)\b", re.IGNORECASE)
+_SYMBOLS = {"r": "₹", "d": "$", "b": "$", "e": "€"}
+
+
+def tidy_digits(text: str) -> str:
+    """The same conventions for numbers the model already wrote as digits:
+    "3.30pm" → 3:30 PM, "500 rupees" / "Rs 500" → ₹500, "50 percent" → 50%."""
+
+    def time_(m: re.Match) -> str:
+        hour, minutes = int(m.group(1)), m.group(2)
+        if not 1 <= hour <= 12 or (minutes and int(minutes) > 59):
+            return m.group(0)
+        rest = text[m.end():]
+        # Keep a sentence-ending period that was part of "p.m.".
+        ends = m.group(4) and (not rest.strip() or rest.lstrip()[:1].isupper())
+        return f"{hour}{':' + minutes if minutes else ''} {m.group(3).upper()}M{'.' if ends else ''}"
+
+    text = _digit_time.sub(time_, text)
+    text = _digit_money.sub(lambda m: _SYMBOLS[m.group(2)[0].lower()] + m.group(1), text)
+    text = _rs.sub(lambda m: "₹" + m.group(1), text)
+    return _digit_percent.sub(r"\1%", text)
+
+
 def _digits(n: Num) -> str:
     if n.scale:
         word, size = n.scale

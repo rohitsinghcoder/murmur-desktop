@@ -4,7 +4,7 @@ cd /d "%~dp0"
 title Murmur Desktop setup
 echo.
 echo  === Murmur Desktop setup ===
-echo  This installs what Murmur needs, about 800 MB of downloads.
+echo  This installs what Murmur needs, about 1 GB of downloads.
 echo.
 
 rem The Python environment lives at a short path: some packages nest files so deep that

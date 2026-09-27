@@ -2,7 +2,6 @@
 
     python -m murmur.console
 """
-import sys
 import threading
 import time
 
@@ -16,25 +15,21 @@ def main():
     print(f"Loaded in {time.perf_counter() - t0:.1f}s.")
     done = threading.Event()
 
-    def partial(text):
-        sys.stdout.write("\r\x1b[K" + text[-110:])
-        sys.stdout.flush()
-
     def finished(text, audio_ms, latency_ms):
-        print(f"\n\nFinal: {text}\n({audio_ms / 1000:.1f}s audio, finished {latency_ms} ms after you stopped)\n")
+        print(f"\n{text}\n({audio_ms / 1000:.1f}s audio, ready {latency_ms} ms after you stopped)\n")
         done.set()
 
     def error(message):
         print(f"\n{message}")
         done.set()
 
-    d = dictation.Dictation(rec, on_partial=partial, on_done=finished, on_error=error)
+    d = dictation.Dictation(rec, on_done=finished, on_error=error)
     while True:
         if input("Press Enter to speak (q to quit): ").strip().lower() == "q":
             return
         done.clear()
         d.listen()
-        input()
+        input("Listening... press Enter to stop.")
         d.finish()
         done.wait()
 

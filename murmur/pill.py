@@ -74,7 +74,7 @@ class Pill(QWidget):
         self.setAttribute(Qt.WA_ShowWithoutActivating)
         self.setMouseTracking(True)
         self.resize(WIN_W, WIN_H)
-        self.hint_font = QFont("Segoe UI", 9, QFont.DemiBold)
+        self.hint_font = QFont("Geist", 9, QFont.Medium)
 
         self.state = "rest"
         self.loading = True

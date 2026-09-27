@@ -5,27 +5,29 @@ into whatever app you're in. Speech recognition runs entirely on your computer. 
 account, nothing leaves the machine.
 
 The Windows companion to [Murmur for Android](https://github.com/rohitsinghcoder/Murmur), with the
-same speech model and the same text cleanup.
+same text cleanup.
 
 - Hold-to-talk from any app; double-tap Right Ctrl for hands-free, Esc to cancel
-- Live transcript in a small pill at the bottom of the screen while you speak
-- Punctuation and capitals, and "um", "uh" and similar filler words removed
+- A small bar at the bottom of the screen shows your voice while you speak
+- Accurate punctuation and capitals, and "um", "uh" and similar filler words removed
 - Writes numbers the way you'd type them: "twenty twenty five" → 2025, "fifty percent" → 50%,
-  "three thirty pm" → 3:30 PM, "five hundred rupees" → ₹500
+  "three thirty pm" → 3:30 PM, "five hundred rupees" → ₹500, "Rs 2,450" → ₹2,450
 - Your clipboard is put back after pasting, and dictations stay out of Win+V history
 - History of everything you've dictated
 - English only for now
 
-It uses NVIDIA's Nemotron Speech Streaming model (0.6B parameters, int8) through
-[sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), on the CPU.
+It uses NVIDIA's [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) speech model
+(int8) through [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx), on the CPU. While you talk,
+Murmur transcribes in the background at every pause, so the text is usually ready the moment
+you let go.
 
 ## What you need
 
 - Windows 10 or 11, 64-bit
 - [Python](https://www.python.org/downloads/) 3.11 or newer (3.12 recommended)
-- About 1.5 GB of free disk space, and ~1 GB of RAM while Murmur runs
+- About 2 GB of free disk space, and ~1 GB of RAM while Murmur runs
 - Any laptop or desktop CPU from the last several years. On a Ryzen 5 4600H, the text appears
-  about 0.2–0.3 s after you let go of the key.
+  within about 0.2 s of letting go, even after 15 seconds of talking.
 
 ## Install (5 minutes)
 
@@ -50,7 +52,7 @@ Murmur runs from where you put it.
 **3. Double-click `setup.bat`** in the folder. It:
 
 - creates a private Python environment for Murmur in `%USERPROFILE%\.murmur` (just for your user; nothing is installed system-wide),
-- installs the packages and downloads the speech model (~800 MB in total),
+- installs the packages and downloads the speech model (about 1 GB in total),
 - adds **Murmur** to your Start menu, and asks whether to start it with Windows,
 - starts Murmur.
 
@@ -76,8 +78,8 @@ python -m venv .venv
 ```
 
 `fetch_model.py` downloads the
-[Nemotron Speech Streaming EN 0.6B, 560 ms, int8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
-model (~650 MB) into `models/`. Running with `python` instead of `pythonw` keeps a console
+[Parakeet TDT 0.6B v2, int8](https://github.com/k2-fsa/sherpa-onnx/releases/tag/asr-models)
+model (~460 MB) into `models/`. Running with `python` instead of `pythonw` keeps a console
 open, which shows any errors.
 
 </details>
@@ -94,6 +96,7 @@ open, which shows any errors.
 
 The bar at the bottom of the screen shows what Murmur is doing: it grows into a black pill with
 bars that move with your voice, shimmers while it finishes, and shrinks back when your text is in.
+Hover it for a hint, or click it to start dictating hands-free.
 
 Open the Murmur window from the Start menu or by clicking the tray icon:
 
@@ -145,15 +148,24 @@ Everything is in `murmur/`:
 
 | File | What it does |
 |---|---|
-| `engine.py` | Loads the speech model once; `Transcriber` streams audio in and text out |
-| `dictation.py` | Records from the mic and transcribes while you speak |
+| `engine.py` | Loads the speech model once; turns audio into text with word timings |
+| `dictation.py` | Records from the mic; transcribes in the background at pauses and stitches long dictations together at word boundaries |
 | `hotkey.py` | Global hold-to-talk hotkey (any key or combo) via a low-level keyboard hook |
 | `inserter.py` | Pastes into the focused app and restores the clipboard |
 | `pill.py` | The floating bar: resting, recording, hands-free and processing states |
-| `ui/` | The window: `home.py`, `settings_page.py`, `about.py`, shared `widgets.py` and `style.py` |
+| `ui/` | The window: an HTML interface (`ui/web`) in a Qt WebEngine view (`window.py`), plus the logo (`style.py`) |
 | `cleanup.py`, `numbers.py` | Filler-word removal and number formatting (ports of the Android app's) |
 | `history.py`, `settings.py` | Dictation history and settings, in `~/.murmur` |
 | `__main__.py` | Tray app that wires it all together |
 
 `setup.bat`, `uninstall.bat` and `scripts/` handle installing, the model download and the
-shortcuts.
+shortcuts. `scripts/make_icon.py` and `scripts/fetch_icons.py` regenerate the app icon and the
+interface icons.
+
+## Credits
+
+- Speech model: [NVIDIA Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2)
+  (CC-BY-4.0), run with [sherpa-onnx](https://github.com/k2-fsa/sherpa-onnx) (Apache-2.0)
+- Typeface: [Geist and Geist Mono](https://github.com/vercel/geist-font) (SIL Open Font License,
+  see `murmur/ui/web/fonts/OFL.txt`)
+- Icons: [Phosphor Icons](https://phosphoricons.com) (MIT)

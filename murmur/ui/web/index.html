@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="dark">
+<title>Murmur</title>
+<link rel="stylesheet" href="style.css">
+<script src="qrc:///qtwebchannel/qwebchannel.js"></script>
+</head>
+<body>
+<aside class="sidebar">
+  <div class="brand">
+    <span class="logo" data-logo></span>
+    <span class="brand-name">Murmur</span>
+  </div>
+  <nav>
+    <button class="nav-item active" data-nav="home"><span data-icon="home"></span>Home</button>
+    <button class="nav-item" data-nav="settings"><span data-icon="settings"></span>Settings</button>
+    <button class="nav-item" data-nav="about"><span data-icon="info"></span>About</button>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="hint">Hold <span data-hotkey></span> in any app to dictate.</div>
+    <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span></div>
+  </div>
+</aside>
+
+<main>
+  <section class="page active" data-page="home">
+    <header class="page-head">
+      <h1 data-greeting>Welcome back</h1>
+      <p class="lead">Hold <span data-hotkey></span> in any app and speak. Double-tap it for hands-free, and press <kbd class="key small">Esc</kbd> to cancel.</p>
+    </header>
+
+    <div class="stats">
+      <div class="stat"><div class="stat-value" data-stat="words">0</div><div class="stat-label">Words dictated</div></div>
+      <div class="stat"><div class="stat-value" data-stat="wpm">0</div><div class="stat-label">Words per minute</div></div>
+      <div class="stat"><div class="stat-value" data-stat="dictations">0</div><div class="stat-label">Dictations</div></div>
+      <div class="stat"><div class="stat-value" data-stat="streak">0</div><div class="stat-label" data-streak-label>Days in a row</div></div>
+    </div>
+
+    <label class="try">
+      <span class="try-icon" data-icon="mic"></span>
+      <textarea rows="1" data-try spellcheck="false"></textarea>
+    </label>
+
+    <div class="section-head">
+      <h2>History</h2>
+      <div class="search">
+        <span data-icon="search"></span>
+        <input type="text" placeholder="Search" data-search spellcheck="false">
+        <kbd class="key small">Ctrl F</kbd>
+      </div>
+    </div>
+    <div data-history></div>
+  </section>
+
+  <section class="page" data-page="settings">
+    <header class="page-head">
+      <h1>Settings</h1>
+      <p class="lead">Murmur types wherever your cursor is. This is how you start it.</p>
+    </header>
+
+    <div class="group-label">Shortcut</div>
+    <div class="card" data-shortcut-card>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Push to talk</div>
+          <div class="row-desc">Hold it while you speak and let go to type. Pick a key you don't use for typing.</div>
+        </div>
+        <div class="row-control" data-shortcut-idle>
+          <span data-hotkey></span>
+          <button class="btn" data-change>Change</button>
+        </div>
+        <div class="row-control" data-shortcut-recording hidden>
+          <span class="listening"><span class="rec"></span>Press your new shortcut</span>
+          <button class="btn ghost" data-cancel>Cancel</button>
+        </div>
+      </div>
+      <div class="row-error" data-shortcut-error hidden><span data-icon="alert"></span><span data-error-text></span></div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Hands-free</div>
+          <div class="row-desc">Double-tap the shortcut, or click the bar at the bottom of your screen. Tap the shortcut again or click stop to finish.</div>
+        </div>
+        <div class="pill-preview" aria-hidden="true">
+          <span class="pp-x"></span>
+          <span class="pp-bars"><i style="height:6px"></i><i style="height:11px"></i><i style="height:16px"></i><i style="height:9px"></i><i style="height:14px"></i><i style="height:7px"></i><i style="height:4px"></i></span>
+          <span class="pp-stop"></span>
+        </div>
+      </div>
+      <div class="card-foot">
+        <span>Right Alt, F9 and Ctrl + Shift + Space all work well.</span>
+        <button class="link" data-reset hidden>Reset to Right Ctrl</button>
+      </div>
+    </div>
+
+    <div class="group-label">Privacy</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Your voice never leaves this PC</div>
+          <div class="row-desc">Speech is turned into text on your own computer. There is no account, and nothing is sent over the internet.</div>
+        </div>
+        <span data-icon="lock" class="row-lock"></span>
+      </div>
+    </div>
+  </section>
+
+  <section class="page" data-page="about">
+    <header class="about-head page-head">
+      <span class="logo big" data-logo></span>
+      <div>
+        <h1>Murmur</h1>
+        <p class="lead" data-version>Private voice typing for Windows</p>
+      </div>
+      <button class="btn" data-repo><span data-icon="github"></span>Source code</button>
+    </header>
+
+    <div class="group-label">Speech model</div>
+    <div class="card">
+      <div class="kv"><span>Model</span><span data-model></span></div>
+      <div class="kv"><span>Runs on</span><span>Your CPU, with sherpa-onnx</span></div>
+      <div class="kv"><span>Loaded in</span><span data-load></span></div>
+      <div class="kv"><span>Last dictation</span><span data-latency></span></div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Speed test</div>
+          <div class="row-desc" data-speed-result>How fast this computer turns speech into text.</div>
+          <div class="progress" data-speed-progress hidden><i></i></div>
+        </div>
+        <button class="btn" data-speed><span data-icon="zap"></span>Run</button>
+      </div>
+    </div>
+
+    <div class="group-label">Your data</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">History and settings</div>
+          <div class="row-desc mono" data-datadir></div>
+        </div>
+        <button class="btn" data-folder><span data-icon="folder"></span>Open folder</button>
+      </div>
+    </div>
+    <p class="footnote">Murmur is also on Android: github.com/rohitsinghcoder/Murmur</p>
+  </section>
+</main>
+
+<div class="toast" data-toast><span data-icon="check"></span><span data-toast-text></span></div>
+<script src="icons.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

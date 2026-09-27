@@ -5,6 +5,7 @@ it), then puts the previous clipboard text back. If the clipboard holds somethin
 text (an image, copied files), it is left alone and the text is typed as keystrokes instead.
 """
 import ctypes
+import os
 import threading
 import time
 from ctypes import wintypes
@@ -207,6 +208,8 @@ def foreground_app() -> str | None:
     hwnd = user32.GetForegroundWindow()
     pid = wintypes.DWORD()
     user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
+    if pid.value == os.getpid():
+        return "Murmur"  # the try-it box in Murmur's own window
     h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
     if not h:
         return None

@@ -8,16 +8,23 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `python bench.py`: speed test. `python -m pytest`: tests.
 - Model is not in git: `scripts/fetch_model.py` downloads it into `models/`.
 - Only one instance runs; quit from the tray before relaunching a changed version.
-- UI check without a screen: render pages/pill states to PNG with `widget.grab()` and
-  `WA_DontShowOnScreen`, pointing `history.DIR/FILE` at a temp dir with sample entries.
+- UI check without a screen: show the window off-screen and `view.grab()` it (works for
+  WebEngine too), pointing `history.DIR/FILE` at a temp dir with sample entries.
 
 ## Speech model
-- NVIDIA Nemotron Speech Streaming EN 0.6B, 560 ms chunks, int8, via sherpa-onnx 1.13.8 on CPU,
-  4 threads (6 was slower on a Ryzen 5 4600H). feat_dim 128. Settings mirror `Engine.kt`.
+- NVIDIA Parakeet TDT 0.6B v2 int8 (offline, not streaming) via sherpa-onnx 1.13.8 on CPU, 4
+  threads, feat_dim 128, model_type nemo_transducer. RTF ~0.085 on a Ryzen 5 4600H. Chosen over the
+  Android app's Nemotron streaming model: much better punctuation, and streaming split sentences
+  at pauses ("like. Be something"). Live text isn't shown on Windows by design.
+- `dictation.Session` hides the latency: background transcription at every 0.3 s pause (used if
+  nothing was said after it), and pieces finished at pauses once 5 s is open, each transcribed
+  with 2 s context before and 1.5 s after, keeping only tokens timestamped inside the piece.
 
 ## Layout (`murmur/`)
-- `engine.py`: port of `Engine.kt`. `dictation.py`: port of `DictationService.runSession`.
-- `cleanup.py`, `numbers.py`: line-for-line ports of `Cleanup.kt`, `Numbers.kt`.
+- `engine.py`: loads the model; `tokens()` returns (text piece, seconds) pairs.
+  `dictation.py`: mic loop (after `DictationService.runSession`) and `Session`.
+- `cleanup.py`, `numbers.py`: line-for-line ports of `Cleanup.kt`, `Numbers.kt`, plus
+  `numbers.tidy_digits` for numbers the model already writes as digits (3.30pm, 500 rupees).
 - `hotkey.py`: WH_KEYBOARD_LL hook; hold / double-tap hands-free / Esc cancel. Hotkeys are key
   names (`rctrl`, `ctrl`+`shift`+`vk_20`); combo trigger keys are swallowed, Win/Alt combos get
   a dummy key so Start/menus don't open. Also records a new hotkey for Settings. Injected keys
@@ -25,8 +32,12 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `inserter.py`: clipboard paste + restore, SendInput Unicode typing fallback.
 - `pill.py`: Wispr-Flow-style bar (no live text by design). Spring-animated; masked so only the
   pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus.
-- `ui/`: main window (Home stats + history, Settings hotkey, About). Always dark.
-  `widgets.clear()` hides widgets before deleteLater, or old rows paint over new ones.
+- `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,
+  no build step); `Bridge` is exposed over QWebChannel as `murmur`. `app.js` falls back to sample
+  data outside Qt, so `ui/web` can be previewed with `python -m http.server`.
+- Design: dark zinc neutrals, one accent (#e07a50, burnt orange), Geist + Geist Mono (bundled),
+  Phosphor icons (generated `icons.js`), no gradients/glows, no purple. Logo is an M made of five
+  waveform bars, middle bar in the accent; drawn in both `style.logo_image` and `app.js` LOGO.
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).
