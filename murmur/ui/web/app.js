@@ -1,7 +1,7 @@
 "use strict";
 
 // ICONS comes from icons.js (Phosphor, regular weight).
-const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22, "seg-icon": 15 };
+const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22, "seg-icon": 15, "note-icon": 15 };
 
 function svg(name, size = 18) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 256 256" fill="currentColor">${ICONS[name]}</svg>`;
@@ -170,6 +170,11 @@ function applyStats(s) {
   countUp($('[data-stat="dictations"]'), s.dictations);
   countUp($('[data-stat="streak"]'), s.streak);
   $("[data-streak-label]").textContent = s.streak === 1 ? "Day in a row" : "Days in a row";
+  // Compared with typing at 40 words per minute. Only worth saying once speaking was faster.
+  $("[data-saved]").hidden = !(s.timesFaster > 1);
+  const saved = s.minutesSaved >= 60 ? `${Math.floor(s.minutesSaved / 60)} h ${s.minutesSaved % 60} min` : `${s.minutesSaved} min`;
+  $("[data-saved-text]").innerHTML = `<b>${s.timesFaster.toFixed(1)}×</b> faster than typing`
+    + (s.minutesSaved >= 1 ? `<span class="sep">·</span><b>${saved}</b> saved` : "");
 }
 
 function loadHistory() {
@@ -550,7 +555,7 @@ function sampleBridge() {
       dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(),
     })),
     setTheme(t) { theme = t; stateChanged.emit(); },
-    history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 89, wpm: 152, dictations: 6, streak: 2 } })),
+    history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},
     speedTest() {}, openDataFolder() {}, openRepo() {},
   };

@@ -42,3 +42,21 @@ def test_older_try_it_entries_are_left_out(store):
 def test_stats_skip_try_it_entries():
     s = history.stats([entry("one two three"), entry("four five", app=history.TRY_IT)])
     assert s["words"] == 3 and s["dictations"] == 1
+
+
+def test_time_saved_against_typing():
+    # 300 words spoken in 2 minutes is 150 wpm: typing them at 40 wpm takes 7.5 minutes.
+    s = history.stats([entry(" ".join(["word"] * 150), audio_ms=60000)] * 2)
+    assert s["wpm"] == 150
+    assert s["timesFaster"] == 3.8
+    assert s["minutesSaved"] == 6  # 7.5 - 2 = 5.5, rounded to even
+
+
+def test_time_saved_never_negative():
+    s = history.stats([entry("one two three", audio_ms=600000)])
+    assert s["timesFaster"] == 0.0 and s["minutesSaved"] == 0
+
+
+def test_no_speech_no_stats():
+    s = history.stats([])
+    assert s == {"words": 0, "wpm": 0, "dictations": 0, "streak": 0, "timesFaster": 0, "minutesSaved": 0}

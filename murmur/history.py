@@ -14,6 +14,8 @@ _OLD_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Murmur" / "history.j
 # What inserter.foreground_app() calls Murmur's own window. Dictations into its try-it box are
 # practice: they're not saved, and older ones already saved are left out of history and stats.
 TRY_IT = "Murmur"
+# An average typist, for "faster than typing" and the time saved.
+TYPING_WPM = 40
 
 
 def _migrate():
@@ -45,7 +47,8 @@ def delete(entry_time: int):
 
 
 def stats(entries: list[dict]) -> dict:
-    """Words dictated, speaking speed (words per minute) and the current daily streak."""
+    """Words dictated, speaking speed (words per minute), the current daily streak, and how
+    much faster than typing that was."""
     entries = [e for e in entries if e.get("app") != TRY_IT]
     words = sum(len(e.get("text", "").split()) for e in entries)
     minutes = sum(e.get("audioMs", 0) for e in entries) / 60000
@@ -58,8 +61,13 @@ def stats(entries: list[dict]) -> dict:
     while time.localtime(day)[:3] in days:
         streak += 1
         day -= 86400
-    return {"words": words, "wpm": round(words / minutes) if minutes > 0.1 else 0,
-            "dictations": len(entries), "streak": streak}
+    # Time saved: typing the same words at TYPING_WPM, less the time spent speaking them.
+    spoke = minutes > 0.1
+    typing = words / TYPING_WPM
+    return {"words": words, "wpm": round(words / minutes) if spoke else 0,
+            "dictations": len(entries), "streak": streak,
+            "timesFaster": round(typing / minutes, 1) if spoke else 0,
+            "minutesSaved": round(max(0.0, typing - minutes)) if spoke else 0}
 
 
 def load() -> list[dict]:
