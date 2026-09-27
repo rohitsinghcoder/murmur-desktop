@@ -4,6 +4,7 @@ The page talks to Murmur through `Bridge` over QWebChannel.
 """
 import json
 import os
+import threading
 from pathlib import Path
 
 from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
@@ -13,7 +14,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QVBoxLayout, QWidget
 
-from .. import engine, history
+from .. import engine, history, startup
 from .. import hotkey as hk
 from . import style
 
@@ -30,6 +31,7 @@ class Bridge(QObject):
     historyChanged = Signal()
     hotkeyRecorded = Signal(str)
     speedResult = Signal(str)
+    startupChanged = Signal(str)  # an error message, or "" when it worked
 
     def __init__(self, app):
         super().__init__()
@@ -57,6 +59,7 @@ class Bridge(QObject):
             "dataDir": str(history.DIR),
             "theme": a.theme_setting,
             "resolvedTheme": a.theme,
+            "startup": startup.enabled(),
         })
 
     @Slot(result=str)
@@ -88,6 +91,18 @@ class Bridge(QObject):
     @Slot(str)
     def setTheme(self, setting: str):
         self.app.set_theme(setting)
+
+    @Slot(bool)
+    def setStartup(self, on: bool):
+        # PowerShell makes the shortcut, which takes a moment: not on the UI thread.
+        def run():
+            try:
+                startup.set_enabled(on)
+                self.startupChanged.emit("")
+            except Exception as e:
+                self.startupChanged.emit(str(e) or "failed")
+
+        threading.Thread(target=run, daemon=True).start()
 
     @Slot()
     def speedTest(self):

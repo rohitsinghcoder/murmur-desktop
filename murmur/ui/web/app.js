@@ -96,7 +96,11 @@ function applyState(s) {
   $("[data-reset]").hidden = s.isDefaultHotkey || recording;
   $("[data-speed]").disabled = s.status !== "ready" || speedRunning;
   applyTheme(s.theme, s.resolvedTheme);
+  $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
 }
+
+function setSwitch(el, on) { el.setAttribute("aria-checked", !!on); }
+const isOn = (el) => el.getAttribute("aria-checked") === "true";
 
 // `setting` is system, light or dark; `resolved` is what that means right now.
 function applyTheme(setting, resolved) {
@@ -444,6 +448,20 @@ function onSpeed(text) {
   $("[data-speed]").disabled = state.status !== "ready";
 }
 
+// Settings: start with Windows. Making the shortcut takes a moment, so the switch moves at once
+// and waits (disabled) for the result.
+
+function setStartup(on) {
+  $$("[data-startup]").forEach((b) => { setSwitch(b, on); b.disabled = true; });
+  bridge.setStartup(on);
+}
+
+function onStartup(error) {
+  $$("[data-startup]").forEach((b) => (b.disabled = false));
+  if (error) toast("Couldn't change the startup shortcut", { icon: "alert" });
+  loadState();
+}
+
 // Navigation and wiring.
 
 function showPage(name) {
@@ -490,6 +508,7 @@ function wire() {
   };
   wireRadios($('[data-radios="theme"]'), (theme) => bridge.setTheme(theme));
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
+  $$("[data-startup]").forEach((b) => (b.onclick = () => setStartup(!isOn(b))));
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-repo]").onclick = () => bridge.openRepo();
   $("[data-greeting]").textContent = greeting();
@@ -523,6 +542,7 @@ function connect(b) {
   b.historyChanged.connect(loadHistory);
   b.hotkeyRecorded.connect(onRecorded);
   b.speedResult.connect(onSpeed);
+  b.startupChanged.connect(onStartup);
   loadState();
   loadHistory();
 }
@@ -533,9 +553,9 @@ function sampleBridge() {
     const slots = [];
     return { connect: (f) => slots.push(f), emit: (...a) => slots.forEach((f) => f(...a)) };
   };
-  const stateChanged = signal();
+  const stateChanged = signal(), startupChanged = signal();
   const light = matchMedia("(prefers-color-scheme: light)");
-  let theme = "system";
+  let theme = "system", startup = false;
   const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
   light.addEventListener("change", () => stateChanged.emit());
   const now = Date.now(), m = 60000, d = 86400000;
@@ -548,13 +568,14 @@ function sampleBridge() {
     [now - 3 * d, "Meeting notes: ship the settings page, then the shortcut picker, then the new bar.", 6800, "notepad.exe"],
   ].map(([time, text, audioMs, app]) => ({ time, text, audioMs, app }));
   return {
-    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(),
+    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(), startupChanged,
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
-      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(),
+      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(), startup,
     })),
     setTheme(t) { theme = t; stateChanged.emit(); },
+    setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},
     speedTest() {}, openDataFolder() {}, openRepo() {},
