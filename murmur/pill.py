@@ -102,6 +102,13 @@ class Pill(QWidget):
 
         self.timer = QTimer(self, interval=16, timeout=self._tick)
         self._message_timer = QTimer(self, singleShot=True, timeout=self._end_message)
+        # Placed before it is ever shown; otherwise Windows puts a new window mid-screen.
+        self._move_to_cursor_screen()
+        # And again when the taskbar moves or the resolution or scaling changes.
+        for screen in QGuiApplication.screens():
+            screen.availableGeometryChanged.connect(lambda _: self._move_to_cursor_screen())
+        QGuiApplication.instance().screenAdded.connect(lambda _: self._move_to_cursor_screen())
+        QGuiApplication.instance().screenRemoved.connect(lambda _: self._move_to_cursor_screen())
 
     # State changes (UI thread only).
 
@@ -139,6 +146,7 @@ class Pill(QWidget):
 
     def rest(self):
         self.state = "rest"
+        self._move_to_cursor_screen()
         self._retarget()
 
     def show_message(self, text: str, error=False, ms=2600):

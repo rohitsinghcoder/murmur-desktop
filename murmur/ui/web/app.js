@@ -182,8 +182,8 @@ function renderHistory() {
   }
 }
 
-// A row: click anywhere to copy. Hover shows a labelled Copy button; delete is kept apart, in the
-// menu behind "More" or a right-click, so it can't be hit by accident.
+// A row: click anywhere (or the copy icon) to copy. Delete is behind the "More" icon or a
+// right-click, so it always takes two steps and can't be hit instead of copy.
 function entryRow(e, when, i) {
   const row = document.createElement("div");
   row.className = "entry";
@@ -193,7 +193,7 @@ function entryRow(e, when, i) {
     <div class="entry-time"></div>
     <div><div class="entry-text"></div><div class="entry-meta"></div></div>
     <div class="entry-actions">
-      <button class="copy-btn" data-act="copy" tabindex="-1"></button>
+      <button class="icon-btn" data-act="copy" title="Copy" tabindex="-1">${svg("copy", 16)}</button>
       <button class="icon-btn" data-act="more" title="More" tabindex="-1">${svg("more", 18)}</button>
     </div>`;
   $(".entry-time", row).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
@@ -202,23 +202,20 @@ function entryRow(e, when, i) {
   $(".entry-meta", row).textContent = meta.join(" · ");
 
   const copyBtn = $('[data-act="copy"]', row);
-  const copyLabel = (done) => (copyBtn.innerHTML = `${svg(done ? "check" : "copy", 15)}<span>${done ? "Copied" : "Copy"}</span>`);
-  copyLabel(false);
-
   const copy = () => {
     bridge.copy(e.text);
-    row.classList.add("copied");
-    copyLabel(true);
+    copyBtn.classList.add("done");
+    copyBtn.innerHTML = svg("check", 16);
     toast("Copied to clipboard");
     clearTimeout(row.copiedTimer);
-    row.copiedTimer = setTimeout(() => { row.classList.remove("copied"); copyLabel(false); }, 1600);
+    row.copiedTimer = setTimeout(() => { copyBtn.classList.remove("done"); copyBtn.innerHTML = svg("copy", 16); }, 1400);
   };
   const remove = () => {
     row.classList.add("removing");
     setTimeout(() => { entries = entries.filter((x) => x.time !== e.time); bridge.deleteEntry(e.time); }, 250);
     toast("Deleted");
   };
-  const items = [{ label: "Copy", icon: "copy", action: copy }, { label: "Delete", icon: "trash", danger: true, action: remove }];
+  const del = { label: "Delete", icon: "trash", danger: true, action: remove };
 
   row.addEventListener("click", (ev) => {
     if (ev.target.closest('[data-act="more"]')) return;
@@ -227,8 +224,9 @@ function entryRow(e, when, i) {
   });
   $('[data-act="more"]', row).addEventListener("click", (ev) => {
     const r = ev.currentTarget.getBoundingClientRect();
-    openMenu(r.right, r.bottom + 6, items, true);
+    openMenu(r.right, r.bottom + 6, [del], true);
   });
+  const items = [{ label: "Copy", icon: "copy", action: copy }, del];
   row.addEventListener("contextmenu", (ev) => { ev.preventDefault(); openMenu(ev.clientX, ev.clientY, items); });
   row.addEventListener("keydown", (ev) => {
     if (ev.key === "Enter") { ev.preventDefault(); copy(); }
