@@ -1,6 +1,6 @@
 # Creates (or with -Remove, deletes) the Start menu shortcut and, with -Startup 1, one that
 # starts Murmur with Windows. Used by setup.bat and uninstall.bat.
-param([int]$Startup = 0, [switch]$Remove)
+param([string]$Python, [int]$Startup = 0, [switch]$Remove)
 
 $root = Split-Path -Parent $PSScriptRoot
 $startMenu = Join-Path ([Environment]::GetFolderPath("Programs")) "Murmur.lnk"
@@ -16,7 +16,7 @@ function New-Link($path) {
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($path)
     # pythonw runs without a console window.
-    $link.TargetPath = Join-Path $root ".venv\Scripts\pythonw.exe"
+    $link.TargetPath = $Python
     $link.Arguments = "-m murmur"
     $link.WorkingDirectory = $root
     $link.Description = "Murmur: private voice typing. Hold Right Ctrl to dictate."
