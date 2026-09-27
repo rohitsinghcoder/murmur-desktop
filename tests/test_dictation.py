@@ -44,8 +44,10 @@ def run():
         audio = np.concatenate(parts)
         for i in range(0, len(audio), FRAME):
             session.add(audio[i:i + FRAME])
-            for f in [session.guess[1]] if session.guess else []:
-                f.result()  # let background work finish, like real time would
+            # Let background work (guesses and finished pieces) finish, like real time would;
+            # otherwise a piece may still be decoding when the test looks at `calls`.
+            for f in session.pieces + ([session.guess[1]] if session.guess else []):
+                f.result()
         return session
 
     yield feed, calls
