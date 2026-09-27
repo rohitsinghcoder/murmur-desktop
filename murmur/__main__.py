@@ -40,6 +40,7 @@ class App(QObject):
     done = Signal(str, int, int)
     error = Signal(str)
     silent = Signal()
+    auto_stopped = Signal()
     hotkey_recorded = Signal(object)
     speed_result = Signal(str)
     # For the window.
@@ -94,11 +95,12 @@ class App(QObject):
         self.start.connect(self.on_start)
         self.finish.connect(self.on_finish)
         self.cancel.connect(self.on_cancel)
-        self.lock.connect(self.pill.hands_free)
+        self.lock.connect(self.on_lock)
         self.levels.connect(self.pill.set_level)
         self.done.connect(self.on_done)
         self.error.connect(self.on_error)
         self.silent.connect(self.on_silent)
+        self.auto_stopped.connect(self.on_click_stop)  # as if ■ was clicked
 
         # Hook callbacks must return fast, so they only post to the UI thread.
         self.keys = hotkey.HoldToTalk(
@@ -123,7 +125,7 @@ class App(QObject):
         log.info("Speech model loaded in %.1f s", time.perf_counter() - t0)
         self.dictation = dictation.Dictation(
             rec, on_levels=self.levels.emit, on_done=self.done.emit, on_error=self.error.emit,
-            on_silent=self.silent.emit,
+            on_silent=self.silent.emit, on_auto_stop=self.auto_stopped.emit,
         )
         self.loaded.emit(time.perf_counter() - t0)
 
@@ -153,7 +155,7 @@ class App(QObject):
         if self.dictation is None:
             self.pill.show_message("Still loading the speech model…", ms=1500)
             return False
-        if self.testing_speed or not self.dictation.listen():
+        if self.testing_speed or not self.dictation.listen(hands_free):
             return False
         self.target_app = inserter.foreground_app()
         self.pill.recording(hands_free)
@@ -165,6 +167,12 @@ class App(QObject):
     def on_click_start(self):
         if self._listen(hands_free=True):
             self.keys.hands_free()
+
+    def on_lock(self):
+        # Double tap: now hands-free, so it may finish by itself after a long silence.
+        if self.dictation and self.dictation.busy:
+            self.dictation.hands_free = True
+        self.pill.hands_free()
 
     def on_finish(self):
         if self.dictation and self.dictation.busy:

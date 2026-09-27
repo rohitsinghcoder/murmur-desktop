@@ -215,3 +215,41 @@ def test_quiet_room_is_transcribed_as_usual(mic):
     assert d.ended.wait(5)
     text, audio_ms, _ = results["done"]
     assert text and audio_ms == 2000
+
+
+def test_hands_free_finishes_by_itself_after_a_minute_without_speech(mic):
+    d, results, play = mic
+    stopped = threading.Event()
+    d.on_auto_stop = stopped.set
+    idle = dictation.HANDS_FREE_IDLE_S
+    play(np.concatenate([speech(2), room(idle + 5)]))
+    d.listen(hands_free=True)
+    assert stopped.wait(10)  # nobody called finish()
+    assert d.ended.wait(5)
+    text, audio_ms, _ = results["done"]
+    assert text  # delivered, not thrown away
+    assert audio_ms >= (2 + idle) * 1000
+
+
+def test_hands_free_keeps_listening_while_there_is_speech(mic):
+    d, results, play = mic
+    stopped = threading.Event()
+    d.on_auto_stop = stopped.set
+    gap = dictation.HANDS_FREE_IDLE_S - 10
+    fake = play(np.concatenate([speech(1), room(gap), speech(1), room(gap)]))
+    d.listen(hands_free=True)
+    assert fake.played.wait(10)
+    assert not d.ended.wait(0.3) and not stopped.is_set()
+    d.finish()
+    assert d.ended.wait(5) and "done" in results
+
+
+def test_holding_the_hotkey_never_finishes_by_itself(mic):
+    d, results, play = mic
+    stopped = threading.Event()
+    d.on_auto_stop = stopped.set
+    fake = play(np.concatenate([speech(1), room(dictation.HANDS_FREE_IDLE_S + 5)]))
+    d.listen()
+    assert fake.played.wait(10)
+    assert not d.ended.wait(0.3) and not stopped.is_set()
+    d.cancel()

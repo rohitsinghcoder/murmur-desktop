@@ -48,6 +48,9 @@ LOOKAHEAD_S = 1.5
 SILENT_DB = -80.0
 # Judged only on dictations at least this long; a stream can start with a few empty blocks.
 SILENT_MIN_S = 1.0
+# Hands-free dictation finishes by itself (delivering the text) after this long without speech,
+# so a forgotten one doesn't keep the mic open for ever. Long enough to stop and think.
+HANDS_FREE_IDLE_S = 60.0
 
 
 def db(chunk: np.ndarray) -> float:
@@ -153,6 +156,7 @@ class Dictation:
         on_done: Callable[[str, int, int], None] = lambda text, audio_ms, latency_ms: None,
         on_error: Callable[[str], None] = lambda message: None,
         on_silent: Callable[[], None] = lambda: None,
+        on_auto_stop: Callable[[], None] = lambda: None,
         device=None,
     ):
         self.rec = rec
@@ -160,7 +164,9 @@ class Dictation:
         self.on_done = on_done
         self.on_error = on_error
         self.on_silent = on_silent  # instead of on_done, when the mic recorded only silence
+        self.on_auto_stop = on_auto_stop  # hands-free finished by itself; on_done follows
         self.device = device
+        self.hands_free = False  # set while listening, when it switches to hands-free
         # One transcription at a time: they share the model and the CPU.
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="murmur-decode")
         self._recording = False
@@ -175,12 +181,13 @@ class Dictation:
         """Transcribes on the decode thread, so it never runs at the same time as a dictation."""
         return self.executor.submit(engine.transcribe, self.rec, audio).result()
 
-    def listen(self) -> bool:
+    def listen(self, hands_free=False) -> bool:
         """Starts listening. Returns False if a dictation is still running."""
         if not self._busy.acquire(blocking=False):
             return False
         self._recording = True
         self._cancelled = False
+        self.hands_free = hands_free
         threading.Thread(target=self._run, name="murmur-dictation", daemon=True).start()
         return True
 
@@ -231,6 +238,10 @@ class Dictation:
                 session.add(chunks.get(timeout=0.05))
             except queue.Empty:
                 pass
+            if self._recording and self.hands_free and session.quiet >= HANDS_FREE_IDLE_S * SR:
+                log.info("Hands-free dictation finished after %.0f s without speech", HANDS_FREE_IDLE_S)
+                self._recording = False
+                self.on_auto_stop()
             if not self._recording and stop_at is None:
                 stop_at = time.monotonic() + TAIL_S
             if self._cancelled or (stop_at is not None and time.monotonic() >= stop_at):
