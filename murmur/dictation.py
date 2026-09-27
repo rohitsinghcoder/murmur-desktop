@@ -12,6 +12,7 @@ The model transcribes whole stretches of audio, so to keep the wait after you st
 The mic is read on its own (audio callback) thread and queued, so a slow step never makes the
 recorder drop audio.
 """
+import logging
 import math
 import queue
 import threading
@@ -25,6 +26,7 @@ import sounddevice as sd
 
 from . import cleanup, engine
 
+log = logging.getLogger(__name__)
 SR = engine.SAMPLE_RATE
 # Audio kept after the stop, for a word still being finished.
 TAIL_S = 0.2
@@ -180,6 +182,7 @@ class Dictation:
         try:
             self._session()
         except Exception as e:
+            log.exception("Dictation failed")
             self.on_error(f"Dictation failed: {e}")
         finally:
             self._recording = False
@@ -203,6 +206,7 @@ class Dictation:
             )
             stream.start()
         except Exception as e:
+            log.exception("Couldn't open the microphone")
             self.on_error(f"The microphone is busy or unavailable: {e}")
             return
 

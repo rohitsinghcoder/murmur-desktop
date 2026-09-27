@@ -5,6 +5,7 @@
 """
 import ctypes
 import getpass
+import logging
 import sys
 import threading
 import time
@@ -15,12 +16,13 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, settings
+from . import dictation, engine, history, hotkey, inserter, logfile, settings
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
 
 INSTANCE = f"MurmurDesktop-{getpass.getuser()}"
+log = logging.getLogger("murmur.app")
 
 
 class App(QObject):
@@ -110,8 +112,10 @@ class App(QObject):
             # Warm-up, so the first real dictation isn't slower.
             engine.transcribe(rec, np.zeros(engine.SAMPLE_RATE, dtype=np.float32))
         except Exception as e:
+            log.exception("Couldn't load the speech model")
             self.load_failed.emit(str(e))
             return
+        log.info("Speech model loaded in %.1f s", time.perf_counter() - t0)
         self.dictation = dictation.Dictation(
             rec, on_levels=self.levels.emit, on_done=self.done.emit, on_error=self.error.emit,
         )
@@ -179,12 +183,16 @@ class App(QObject):
         self.pill.rest()
         self.last_latency_ms = latency_ms
         if text.strip():
-            inserter.paste(text)
+            how = inserter.paste(text)
+            # Lengths and timings only: never what was said.
+            log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
+                     len(text), audio_ms, latency_ms, self.target_app, how)
             history.add(text, audio_ms, self.target_app)
             self.history_changed.emit()
         self.status_changed.emit()
 
     def on_error(self, message: str):
+        log.error("%s", message)
         self.keys.reset()
         self.pill.show_message(message, error=True, ms=5000)
 
@@ -265,6 +273,7 @@ class App(QObject):
                                   QSystemTrayIcon.Information, 4000)
 
     def quit(self):
+        log.info("Murmur quitting")
         self.keys.stop()
         if self.dictation:
             self.dictation.cancel()
@@ -296,6 +305,8 @@ def main():
     if ctypes.get_last_error() == 183:  # ERROR_ALREADY_EXISTS: another copy is still starting
         return
 
+    logfile.setup()
+    log.info("Murmur starting (Python %s)", sys.version.split()[0])
     app = App(qt)
     server = QLocalServer()
     QLocalServer.removeServer(INSTANCE)
