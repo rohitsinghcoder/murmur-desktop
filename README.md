@@ -12,8 +12,12 @@ same text cleanup.
 - Accurate punctuation and capitals, and "um", "uh" and similar filler words removed
 - Writes numbers the way you'd type them: "twenty twenty five" → 2025, "fifty percent" → 50%,
   "three thirty pm" → 3:30 PM, "five hundred rupees" → ₹500, "Rs 2,450" → ₹2,450
+- Say "new line" or "new paragraph" to start one
+- Your own dictionary (names and words to spell your way) and snippets (say "my email", get
+  your address)
 - Your clipboard is put back after pasting, and dictations stay out of Win+V history
-- History of everything you've dictated
+- History of everything you've dictated, searchable, with a count of the time you've saved
+- Light and dark themes
 - English only for now
 
 It uses NVIDIA's [Parakeet TDT 0.6B v2](https://huggingface.co/nvidia/parakeet-tdt-0.6b-v2) speech model
@@ -59,8 +63,10 @@ Murmur runs from where you put it.
 If Windows shows *"Windows protected your PC"*, click **More info → Run anyway**. That appears
 for any downloaded script that isn't signed.
 
-**4. Use it.** When the mic icon turns blue in the system tray (bottom-right, maybe under the
-**^** arrow), click into any text box, **hold Right Ctrl, speak, and let go**.
+**4. Use it.** When the Murmur icon in the system tray (bottom-right, maybe under the **^**
+arrow) turns from grey to the coloured logo, the speech model is ready. Click into any text box,
+**hold Right Ctrl, speak, and let go**. The first time, Home shows a short checklist: a mic
+check, a box to try the shortcut in, and whether to start with Windows.
 
 Next time, start Murmur from the Start menu. To update later: `git pull` (or download the ZIP
 again), then run `setup.bat` again.
@@ -93,27 +99,48 @@ open, which shows any errors.
 | Click the little bar at the bottom of the screen | Hands-free too; click ■ to finish or ✕ to cancel |
 | Esc while listening | Cancel, nothing is typed |
 | Right Ctrl + another key | Works as a normal shortcut; dictation is cancelled |
+| Say "new line" or "new paragraph" | A line break, or a blank line, in the text |
 
 The bar at the bottom of the screen shows what Murmur is doing: it grows into a black pill with
 bars that move with your voice, shimmers while it finishes, and shrinks back when your text is in.
-Hover it for a hint, or click it to start dictating hands-free.
+Hover it for a hint, or click it to start dictating hands-free. If you'd rather not see it
+while you're not dictating, turn off **Show the bar when idle** in Settings.
 
-Open the Murmur window from the Start menu or by clicking the tray icon:
+Right-click the tray icon for **Paste last dictation** (into the app you were in), **Copy last
+dictation**, your **Recent** dictations, **Pause Murmur** (the shortcut and the bar stop
+dictating until you resume), and **Quit Murmur**.
 
-- **Home:** your stats (words, words per minute, streak), a box to try dictation, and your history
-  grouped by day. Hover an entry to copy or delete it; search to find older ones.
-- **Settings:** change the push-to-talk shortcut to any key or combo, like Right Alt, F9 or
-  Ctrl + Shift + Space.
-- **About:** the speech model, a speed test, and where your data is kept.
+Open the Murmur window from the Start menu or by clicking the tray icon. **Ctrl+1**, **2** and
+**3** switch between its pages:
 
-Closing the window keeps Murmur running in the tray. Quit from the tray icon's menu. History
-and settings are stored only on your PC, in `%USERPROFILE%\.murmur`.
+- **Home:** your stats (words, words per minute, streak, and how much faster than typing that
+  is), a box to try dictation, and your history grouped by day. Click a dictation to copy it;
+  right-click it (or use ⋯) to delete it, with a few seconds to undo. Search (Ctrl+F) highlights
+  what matches. Dictations in the try-it box are practice and aren't saved.
+- **Settings:**
+  - *Shortcut:* push-to-talk on any key or combo, like Right Alt, F9 or Ctrl + Shift + Space.
+  - *General:* start with Windows, which microphone to use, and a soft sound when Murmur starts
+    and stops listening (off by default).
+  - *Text:* remove filler words, write numbers as digits, voice commands; each can be turned off.
+  - *Dictionary:* when Murmur hears a word or phrase, write it your way ("sherpa onnx" →
+    sherpa-onnx). Case doesn't matter, and whole words only.
+  - *Snippets:* say a phrase, get your text, even several lines. They work mid-sentence ("send
+    it to my email"), so pick phrases you wouldn't otherwise say.
+  - *Appearance:* System, Light or Dark theme, and whether the bar shows when idle.
+  - *History:* keep it forever, a year, 30 days, or not at all; export it as Markdown or text;
+    or clear it.
+- **About:** the speech model, a speed test, where your data is kept, and the log.
+
+Closing the window keeps Murmur running in the tray. Quit from the tray icon's menu. History,
+settings and the log (`murmur.log`, which never includes what you said) are stored only on your
+PC, in `%USERPROFILE%\.murmur`.
 
 ## Other tools
 
 - `python -m murmur.console`: try dictation in the terminal (Enter to start and stop)
 - `python bench.py [file.wav] [-t 4 6]`: how fast the model runs on your machine
-- `python -m pytest`: tests for the text cleanup and the hotkey
+- `python -m pytest`: tests for the text cleanup, dictionary, snippets, voice commands, history
+  and the hotkey
 
 ## Good to know
 
@@ -130,12 +157,12 @@ and settings are stored only on your PC, in `%USERPROFILE%\.murmur`.
 
 | Problem | Fix |
 |---|---|
-| Nothing happens when I hold Right Ctrl | Check the tray icon is blue (grey means the model is still loading). Some keyboards have no Right Ctrl; open an issue. |
-| The pill says the microphone is unavailable | Settings → Privacy & security → Microphone: turn on **Microphone access** and **Let desktop apps access your microphone**. |
-| Words come out wrong | Speak at a normal pace, close to the mic; built-in laptop mics in a noisy room struggle. |
-| Text doesn't appear in one particular app | Some apps block pasting. The text is still in your history (tray → Open history). |
+| Nothing happens when I hold Right Ctrl | Check the tray icon shows the coloured logo (grey means the model is still loading, or Murmur is paused: resume it from the tray menu). Some keyboards have no Right Ctrl; pick another shortcut in Settings. |
+| The pill says the microphone is unavailable or silent | Windows Settings → Privacy & security → Microphone: turn on **Microphone access** and **Let desktop apps access your microphone**. With more than one mic, pick the right one in Murmur's Settings. |
+| Words come out wrong | Speak at a normal pace, close to the mic; built-in laptop mics in a noisy room struggle. For names and jargon it always gets wrong, add them to the Dictionary in Settings. |
+| Text doesn't appear in one particular app | Some apps block pasting, and apps run as administrator can't be typed into (Murmur copies the text instead). It's still in your history, and in the tray menu under **Copy last dictation**. |
 | `setup.bat` says packages failed | Install Python 3.12, delete `%USERPROFILE%\.murmur\venv`, run `setup.bat` again. |
-| I want to see errors | Quit Murmur, then in a terminal in the Murmur folder run `%USERPROFILE%\.murmur\venv\Scripts\python -m murmur`. |
+| I want to see errors | About → **Open log**, or open `%USERPROFILE%\.murmur\murmur.log`. |
 
 ## Uninstall
 
@@ -153,14 +180,17 @@ Everything is in `murmur/`:
 | `hotkey.py` | Global hold-to-talk hotkey (any key or combo) via a low-level keyboard hook |
 | `inserter.py` | Pastes into the focused app and restores the clipboard |
 | `pill.py` | The floating bar: resting, recording, hands-free and processing states |
+| `pipeline.py` | Everything done to a transcript after the model, following the settings |
 | `ui/` | The window: an HTML interface (`ui/web`) in a Qt WebEngine view (`window.py`), plus the logo (`style.py`) |
 | `cleanup.py`, `numbers.py` | Filler-word removal and number formatting (ports of the Android app's) |
+| `replace.py`, `commands.py` | Dictionary and snippets; "new line" and "new paragraph" |
 | `history.py`, `settings.py` | Dictation history and settings, in `~/.murmur` |
+| `mics.py`, `sounds.py`, `startup.py` | Microphone list and level meter; start and stop sounds; the Startup-folder shortcut |
 | `__main__.py` | Tray app that wires it all together |
 
 `setup.bat`, `uninstall.bat` and `scripts/` handle installing, the model download and the
-shortcuts. `scripts/make_icon.py` and `scripts/fetch_icons.py` regenerate the app icon and the
-interface icons.
+shortcuts. `scripts/make_icon.py`, `scripts/fetch_icons.py` and `scripts/make_sounds.py`
+regenerate the app icon, the interface icons and the start and stop sounds.
 
 ## Credits
 

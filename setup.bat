@@ -52,7 +52,7 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\shortcuts.ps1 -Pytho
 echo.
 echo  === Done ===
 echo  Murmur is in your Start menu. Starting it now...
-echo  When the mic icon in the tray turns blue, click into any text box,
+echo  When the Murmur icon in the tray turns from grey to colour, click into any text box,
 echo  hold RIGHT CTRL, speak, and let go.
 echo.
 start "" "%VENV%\Scripts\pythonw.exe" -m murmur
