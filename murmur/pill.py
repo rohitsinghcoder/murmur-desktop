@@ -3,7 +3,8 @@
 - Resting: a tiny bar. Hover it for a hint; click it to dictate hands-free.
 - Recording: a black pill with white bars that move with your voice.
 - Hands-free: the same, with ✕ (cancel) and ■ (stop) buttons.
-- Processing: the bars turn into a travelling shimmer, then it shrinks back to resting.
+- Processing: the bars turn into a travelling shimmer; once the text is in, a brief check mark,
+  then it shrinks back to resting.
 
 Sizes spring between states. The bar never takes focus, so the app you're typing into keeps
 its cursor, and clicks outside the pill go through to whatever is underneath.
@@ -47,7 +48,11 @@ SIZES = {
     "record": (100.0, 34.0),
     "handsfree": (156.0, 34.0),
     "process": (100.0, 34.0),
+    "done": (56.0, 34.0),
 }
+# The check mark after inserting: drawn on over TICK_DRAW_S, then the bar rests after TICK_MS.
+TICK_DRAW_S = 0.22
+TICK_MS = 750
 
 
 class Spring:
@@ -98,6 +103,7 @@ class Pill(QWidget):
         self.jitter = [1.0] * BARS
         self.next_jitter = 0.0
         self.t = 0.0
+        self.done_at = 0.0
         self._last = time.perf_counter()
         self._mask = QRect()
 
@@ -150,6 +156,13 @@ class Pill(QWidget):
         self._move_to_cursor_screen()
         self._retarget()
 
+    def done(self):
+        """A brief check mark once the text is in, then back to resting."""
+        self.state = "done"
+        self.done_at = self.t
+        self._retarget()
+        self._message_timer.start(TICK_MS)
+
     def show_message(self, text: str, error=False, ms=2600, on_click=None):
         """A short message in the pill. With `on_click`, clicking it does that and dismisses it."""
         self.state = "message"
@@ -160,7 +173,7 @@ class Pill(QWidget):
         self._message_timer.start(ms)
 
     def _end_message(self):
-        if self.state == "message":
+        if self.state in ("message", "done"):
             self.rest()
 
     # Geometry.
@@ -310,6 +323,25 @@ class Pill(QWidget):
             p.setFont(self.hint_font)
             p.setPen(ERROR if self.state == "message" and self.message_error else HINT)
             p.drawText(r, Qt.AlignCenter, text)
+            return
+
+        if self.state == "done":
+            # A check mark drawn on like a pen stroke, easing out.
+            k = min(1.0, (self.t - self.done_at) / TICK_DRAW_S)
+            k = 1 - (1 - k) ** 3
+            pts = [QPointF(cx - 6.5, cy + 0.5), QPointF(cx - 2, cy + 5), QPointF(cx + 7, cy - 5)]
+            legs = [math.dist(a.toTuple(), b.toTuple()) for a, b in zip(pts, pts[1:])]
+            left = k * sum(legs)
+            tick = QPainterPath(pts[0])
+            for a, b, leg in zip(pts, pts[1:], legs):
+                f = min(1.0, left / leg)
+                tick.lineTo(a + (b - a) * f)
+                left -= leg
+                if left <= 0:
+                    break
+            p.setPen(QPen(WHITE, 2.2, Qt.SolidLine, Qt.RoundCap, Qt.RoundJoin))
+            p.setBrush(Qt.NoBrush)
+            p.drawPath(tick)
             return
 
         if self.state == "handsfree":

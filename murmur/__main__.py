@@ -201,6 +201,7 @@ class App(QObject):
             # Lengths and timings only: never what was said.
             log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
                      len(text), audio_ms, latency_ms, self.target_app, how)
+            self.pill.done()
             history.add(text, audio_ms, self.target_app)
             self.history_changed.emit()
         elif audio_ms >= NOTHING_HEARD_MIN_MS:
