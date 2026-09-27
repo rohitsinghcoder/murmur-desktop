@@ -26,7 +26,15 @@ def test_numbers_can_stay_words():
     assert pipeline.process("Send it by 3.30pm for 500 rupees.", s) == "Send it by 3:30 PM for ₹500."
 
 
+def test_dictionary_after_cleanup():
+    s = {**DEFAULTS, "dictionary": [["rohit", "Rohit"], ["sherpa onnx", "sherpa-onnx"]]}
+    assert pipeline.process("Um, ask rohit about sherpa onnx.", s) == "Ask Rohit about sherpa-onnx."
+
+
 def test_settings_validation():
+    assert settings.valid("dictionary", [["a b", "c"]])
+    assert not settings.valid("dictionary", [["a b", ""]])
+    assert not settings.valid("dictionary", [["a", "b", "c"]])
     assert settings.valid("digits", False)
     assert not settings.valid("digits", "no")
     assert not settings.valid("hotkey", ["f9"])  # changed through its own slot

@@ -1,7 +1,7 @@
 "use strict";
 
 // ICONS comes from icons.js (Phosphor, regular weight).
-const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22, "seg-icon": 15, "note-icon": 15 };
+const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22, "seg-icon": 15, "note-icon": 15, "pair-arrow": 14 };
 
 function svg(name, size = 18) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 256 256" fill="currentColor">${ICONS[name]}</svg>`;
@@ -99,6 +99,7 @@ function applyState(s) {
   $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
   $$("[data-option]").forEach((b) => setSwitch(b, s.options[b.dataset.option]));
   setRadios($('[data-radios="keep_history"]'), s.options.keep_history);
+  $$("[data-pairs]").forEach((card) => renderPairs(card, s.options[card.dataset.pairs]));
 }
 
 // Settings saved as they change. Values go to Murmur as JSON.
@@ -470,6 +471,53 @@ function onStartup(error) {
   loadState();
 }
 
+// Settings: dictionary and snippets, lists of [heard, write] pairs. Adding a phrase that's
+// already there replaces it.
+
+function renderPairs(card, pairs) {
+  const list = $("[data-pair-list]", card);
+  list.replaceChildren(...pairs.map(([from, to], i) => {
+    const row = document.createElement("div");
+    row.className = "pair";
+    row.innerHTML = `<span class="pair-from"></span><span class="pair-arrow">${svg("arrow", 14)}</span>
+      <span class="pair-to"></span><button class="icon-btn danger" title="Remove">${svg("trash", 16)}</button>`;
+    $(".pair-from", row).textContent = from;
+    $(".pair-to", row).textContent = to;
+    $("button", row).onclick = () => {
+      const next = pairs.filter((_, j) => j !== i);
+      setOption(card.dataset.pairs, next);
+      renderPairs(card, next);
+      $("[data-from]", card).focus();
+    };
+    return row;
+  }));
+  list.hidden = !pairs.length;
+}
+
+function wirePairs(card) {
+  const form = $("[data-pair-form]", card), from = $("[data-from]", card), to = $("[data-to]", card);
+  const add = () => {
+    const heard = from.value.trim().replace(/\s+/g, " "), write = to.value.trim();
+    if (!heard) { from.focus(); return; }
+    if (!write) { to.focus(); return; }
+    const key = heard.toLowerCase();
+    const pairs = [...state.options[card.dataset.pairs].filter(([f]) => f.toLowerCase() !== key), [heard, write]];
+    setOption(card.dataset.pairs, pairs);
+    renderPairs(card, pairs);
+    from.value = to.value = "";
+    to.dispatchEvent(new Event("input"));
+    from.focus();
+  };
+  form.addEventListener("submit", (e) => { e.preventDefault(); add(); });
+  // A snippet's text can have line breaks: Enter adds one there, and Ctrl+Enter adds the snippet.
+  to.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && (e.ctrlKey || to.tagName !== "TEXTAREA")) { e.preventDefault(); add(); }
+  });
+  if (to.tagName === "TEXTAREA") {
+    to.addEventListener("input", () => { to.style.height = "auto"; to.style.height = `${to.scrollHeight + 2}px`; });
+  }
+}
+
 // Settings: clearing history asks first, in place.
 
 function confirmClear(on, focus = true) {
@@ -531,6 +579,7 @@ function wire() {
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $$("[data-startup]").forEach((b) => (b.onclick = () => setStartup(!isOn(b))));
   wireRadios($('[data-radios="keep_history"]'), (v) => setOption("keep_history", v));
+  $$("[data-pairs]").forEach(wirePairs);
   $("[data-export]").onclick = () => bridge.exportHistory((message) => { if (message) toast(message); });
   $("[data-clear]").onclick = () => confirmClear(true);
   $("[data-clear-cancel]").onclick = () => confirmClear(false);
@@ -588,7 +637,10 @@ function sampleBridge() {
   const stateChanged = signal(), startupChanged = signal();
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false;
-  const options = { remove_fillers: true, digits: true, keep_history: "forever" };
+  const options = {
+    remove_fillers: true, digits: true, keep_history: "forever",
+    dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
+  };
   const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
   light.addEventListener("change", () => stateChanged.emit());
   const now = Date.now(), m = 60000, d = 86400000;

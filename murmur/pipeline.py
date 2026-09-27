@@ -1,9 +1,10 @@
 """Everything done to a transcript before it's typed, following the user's settings.
 
-With the defaults this is exactly cleanup.tidy (the Android app's cleanup); cleanup.py and
-numbers.py stay line-for-line ports, and the switches only pick which of their steps run.
+First cleanup.tidy's steps (the Android app's cleanup; cleanup.py and numbers.py stay
+line-for-line ports, and the switches only pick which of their steps run), then the user's
+dictionary.
 """
-from . import cleanup, numbers
+from . import cleanup, numbers, replace
 
 
 def process(text: str, settings: dict) -> str:
@@ -13,4 +14,5 @@ def process(text: str, settings: dict) -> str:
         text = numbers.format(text)
     # Numbers the model already wrote as digits (3.30pm, 500 rupees) are tidied either way:
     # that's formatting, not turning words into digits.
-    return numbers.tidy_digits(text)
+    text = numbers.tidy_digits(text)
+    return replace.dictionary(text, settings.get("dictionary", ()))
