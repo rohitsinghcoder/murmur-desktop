@@ -638,7 +638,7 @@ function sampleBridge() {
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false;
   const options = {
-    remove_fillers: true, digits: true, voice_commands: true, sounds: false, keep_history: "forever",
+    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
     snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };

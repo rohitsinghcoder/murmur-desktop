@@ -90,6 +90,7 @@ class Pill(QWidget):
 
         self.state = "rest"
         self.loading = True
+        self.show_idle = True  # False (Settings): no resting bar, only the pill while in use
         self.hover = False
         self.hint = "Loading speech model…"
         self.message = ""
@@ -126,6 +127,10 @@ class Pill(QWidget):
 
     def set_hint(self, hint: str):
         self.hint = hint
+        self._retarget()
+
+    def set_show_idle(self, on: bool):
+        self.show_idle = on
         self._retarget()
 
     def recording(self, hands_free=False):
@@ -190,7 +195,7 @@ class Pill(QWidget):
 
     def _retarget(self):
         self.w.target, self.h.target = self._target()
-        if not self.isVisible():
+        if not self.isVisible() and (self.show_idle or self.state != "rest"):
             self._move_to_cursor_screen()
             self.show()
         self._last = time.perf_counter()
@@ -246,6 +251,8 @@ class Pill(QWidget):
         idle = self.state == "rest" and not self.hover and not self.loading
         if idle and self.w.settled and self.h.settled:
             self.timer.stop()
+            if not self.show_idle:
+                self.hide()
 
     # Input.
 
@@ -304,6 +311,10 @@ class Pill(QWidget):
         if resting and self.loading:
             pulse = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(self.t * 4))
             p.setOpacity(pulse)
+        elif resting and not self.show_idle:
+            # Hidden when idle: fades out as it shrinks back, then the window hides.
+            rest_w, record_w = SIZES["rest"][0], SIZES["record"][0]
+            p.setOpacity(max(0.0, min(1.0, (r.width() - rest_w) / (record_w - rest_w))))
         p.fillPath(path, REST_BG if resting else BG)
         p.setPen(QPen(REST_BORDER if resting else BORDER, 1))
         p.drawPath(path)

@@ -294,6 +294,7 @@ class App(QObject):
         history.prune()
         self.history_changed.emit()
         self.sounds.set_enabled(self.settings["sounds"])
+        self.pill.set_show_idle(self.settings["show_bar"])
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting
