@@ -19,9 +19,9 @@
     <span class="brand-name">Murmur</span>
   </div>
   <nav>
-    <button class="nav-item active" data-nav="home"><span data-icon="home"></span>Home</button>
-    <button class="nav-item" data-nav="settings"><span data-icon="settings"></span>Settings</button>
-    <button class="nav-item" data-nav="about"><span data-icon="info"></span>About</button>
+    <button class="nav-item active" data-nav="home" title="Home (Ctrl+1)"><span data-icon="home"></span>Home</button>
+    <button class="nav-item" data-nav="settings" title="Settings (Ctrl+2)"><span data-icon="settings"></span>Settings</button>
+    <button class="nav-item" data-nav="about" title="About (Ctrl+3)"><span data-icon="info"></span>About</button>
   </nav>
   <div class="sidebar-foot">
     <div class="hint">Hold <span data-hotkey></span> in any app to dictate.</div>
@@ -109,10 +109,10 @@
           <div class="row-title">Theme</div>
           <div class="row-desc">System follows your Windows setting.</div>
         </div>
-        <div class="segmented" role="radiogroup" aria-label="Theme">
-          <button role="radio" data-theme-option="system"><span class="seg-icon" data-icon="monitor"></span>System</button>
-          <button role="radio" data-theme-option="light"><span class="seg-icon" data-icon="sun"></span>Light</button>
-          <button role="radio" data-theme-option="dark"><span class="seg-icon" data-icon="moon"></span>Dark</button>
+        <div class="segmented" role="radiogroup" aria-label="Theme" data-radios="theme">
+          <button role="radio" data-value="system"><span class="seg-icon" data-icon="monitor"></span>System</button>
+          <button role="radio" data-value="light"><span class="seg-icon" data-icon="sun"></span>Light</button>
+          <button role="radio" data-value="dark"><span class="seg-icon" data-icon="moon"></span>Dark</button>
         </div>
       </div>
     </div>

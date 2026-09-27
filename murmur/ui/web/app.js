@@ -107,11 +107,7 @@ function applyTheme(setting, resolved) {
     clearTimeout(applyTheme.timer);
     applyTheme.timer = setTimeout(() => root.classList.remove("theming"), 350);
   }
-  $$("[data-theme-option]").forEach((b) => {
-    const on = b.dataset.themeOption === setting;
-    b.classList.toggle("active", on);
-    b.setAttribute("aria-checked", on);
-  });
+  setRadios($('[data-radios="theme"]'), setting);
   // The sidebar toggle shows where it will take you.
   const toggle = $("[data-theme-toggle]");
   const next = resolved === "dark" ? "light" : "dark";
@@ -123,6 +119,31 @@ function applyTheme(setting, resolved) {
     toggle.classList.remove("turn");
     if (!first) { void toggle.offsetWidth; toggle.classList.add("turn"); }
   }
+}
+
+// Segmented controls are radio groups: one tab stop (the chosen option), and the arrow keys,
+// Home and End move the choice, as in any Windows radio group.
+function wireRadios(group, pick) {
+  const radios = $$('[role="radio"]', group);
+  radios.forEach((r) => r.addEventListener("click", () => { setRadios(group, r.dataset.value); pick(r.dataset.value); }));
+  group.addEventListener("keydown", (e) => {
+    const at = radios.indexOf(document.activeElement);
+    const step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    const to = step ? (at + step + radios.length) % radios.length : e.key === "Home" ? 0 : e.key === "End" ? radios.length - 1 : -1;
+    if (at < 0 || to < 0) return;
+    e.preventDefault();
+    radios[to].focus();
+    radios[to].click();
+  });
+}
+
+function setRadios(group, value) {
+  $$('[role="radio"]', group).forEach((r) => {
+    const on = r.dataset.value === value;
+    r.classList.toggle("active", on);
+    r.setAttribute("aria-checked", on);
+    r.tabIndex = on ? 0 : -1;
+  });
 }
 
 function loadState() { bridge.state((json) => applyState(JSON.parse(json))); }
@@ -441,6 +462,12 @@ function wire() {
       showPage("home");
       $("[data-search]").focus();
     }
+    // Ctrl+1, 2 and 3 go to the pages in the sidebar.
+    const page = e.ctrlKey && !e.shiftKey && !e.altKey && { 1: "home", 2: "settings", 3: "about" }[e.key];
+    if (page) {
+      e.preventDefault();
+      showPage(page);
+    }
     if (e.ctrlKey && e.key.toLowerCase() === "z" && pending && !e.target.closest("input, textarea")) {
       e.preventDefault();
       undoDelete();
@@ -456,7 +483,7 @@ function wire() {
     $("[data-speed-result]").textContent = "Transcribing a sample recording…";
     bridge.speedTest();
   };
-  $$("[data-theme-option]").forEach((b) => (b.onclick = () => bridge.setTheme(b.dataset.themeOption)));
+  wireRadios($('[data-radios="theme"]'), (theme) => bridge.setTheme(theme));
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-repo]").onclick = () => bridge.openRepo();
