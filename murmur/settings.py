@@ -18,6 +18,7 @@ DEFAULTS = {
     "keep_history": "forever",  # forever, year, month or off (history.KEEP)
     "dictionary": [],  # [heard, write] pairs (murmur/replace.py)
     "snippets": [],  # [trigger, text] pairs (murmur/replace.py)
+    "onboarded": False,  # the first-run checklist on Home was dismissed
 }
 
 
@@ -38,6 +39,7 @@ OPTIONS = {
     "keep_history": lambda v: isinstance(v, str) and v in history.KEEP,
     "dictionary": _pairs,
     "snippets": _pairs,
+    "onboarded": lambda v: isinstance(v, bool),
 }
 
 
@@ -50,6 +52,8 @@ def load() -> dict:
         data = json.loads(FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         data = {}
+    # Someone who dictated before the checklist existed doesn't need it.
+    data.setdefault("onboarded", history.FILE.exists())
     return {**DEFAULTS, **{k: v for k, v in data.items() if k in DEFAULTS and (k not in OPTIONS or valid(k, v))}}
 
 

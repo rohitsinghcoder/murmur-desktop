@@ -48,6 +48,39 @@
     </div>
     <p class="stats-note" data-saved hidden><span class="note-icon" data-icon="zap"></span><span data-saved-text></span></p>
 
+    <section class="card setup" data-setup hidden>
+      <div class="setup-head">
+        <div>
+          <h2 data-setup-title>Get set up</h2>
+          <p class="row-desc">Three quick things, and Murmur is ready whenever you need it.</p>
+        </div>
+        <button class="icon-btn" data-setup-close title="Dismiss" aria-label="Dismiss"><span data-icon="close"></span></button>
+      </div>
+      <div class="step" data-step="mic">
+        <span class="step-mark"><span>1</span></span>
+        <div class="row-text">
+          <div class="row-title">Check your microphone</div>
+          <div class="row-desc" data-mic-check>Say something. The meter should move as you talk.</div>
+        </div>
+        <div class="meter" aria-hidden="true"><i data-meter></i></div>
+      </div>
+      <div class="step" data-step="try">
+        <span class="step-mark"><span>2</span></span>
+        <div class="row-text">
+          <div class="row-title">Try your shortcut</div>
+          <div class="row-desc">Click the box below, hold <span data-hotkey></span> and say a sentence. Let go, and it's typed.</div>
+        </div>
+      </div>
+      <div class="step" data-step="startup">
+        <span class="step-mark"><span>3</span></span>
+        <div class="row-text">
+          <div class="row-title">Start with Windows</div>
+          <div class="row-desc">Murmur waits quietly in the tray, so it's there when you need it.</div>
+        </div>
+        <button class="switch" role="switch" aria-label="Start with Windows" data-startup></button>
+      </div>
+    </section>
+
     <label class="try">
       <span class="try-icon" data-icon="mic"></span>
       <textarea rows="1" data-try spellcheck="false"></textarea>

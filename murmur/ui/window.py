@@ -34,6 +34,7 @@ class Bridge(QObject):
     hotkeyRecorded = Signal(str)
     speedResult = Signal(str)
     startupChanged = Signal(str)  # an error message, or "" when it worked
+    micLevel = Signal(float)  # 0..1, while the mic check on Home runs
 
     def __init__(self, app):
         super().__init__()
@@ -45,6 +46,7 @@ class Bridge(QObject):
         app.speed_result.connect(self.speedResult)
         app.theme_changed.connect(lambda _: self.stateChanged.emit())
         app.paused_changed.connect(lambda _: self.stateChanged.emit())
+        self.monitor = mics.Monitor(self.micLevel.emit)
 
     @Slot(result=str)
     def state(self) -> str:
@@ -127,7 +129,7 @@ class Bridge(QObject):
         """The microphones to choose from, looking again for ones plugged in since the last time
         (only while nothing is recording: that restarts the audio system)."""
         a = self.app
-        if not (a.dictation and a.dictation.busy):
+        if not (a.dictation and a.dictation.busy) and not self.monitor.running:
             try:
                 if a.dictation:
                     a.dictation.close()  # the stream kept open between dictations
@@ -138,6 +140,15 @@ class Bridge(QObject):
                 log.warning("Couldn't look for microphones", exc_info=True)
         names = [d["name"] for d in mics.inputs()]
         return json.dumps({"default": mics.default_name(), "devices": names}, ensure_ascii=False)
+
+    @Slot(result=bool)
+    def startMicCheck(self) -> bool:
+        """Starts the level meter for the first-run mic check. False if the mic won't open."""
+        return self.monitor.start(mics.find(self.app.settings["microphone"]))
+
+    @Slot()
+    def stopMicCheck(self):
+        self.monitor.stop()
 
     @Slot(bool)
     def setStartup(self, on: bool):
@@ -237,6 +248,7 @@ class MainWindow(QWidget):
     def closeEvent(self, event):
         # Closing the window keeps Murmur running in the tray, like Wispr Flow.
         event.ignore()
+        self.bridge.monitor.stop()
         self.app.cancel_hotkey_recording()
         self.bridge.hotkeyRecorded.emit(json.dumps({"cancelled": True}))
         self.hide()

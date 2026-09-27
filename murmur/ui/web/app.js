@@ -102,6 +102,7 @@ function applyState(s) {
   applyTheme(s.theme, s.resolvedTheme);
   $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
   $$("[data-option]").forEach((b) => setSwitch(b, s.options[b.dataset.option]));
+  renderSetup();
   setRadios($('[data-radios="keep_history"]'), s.options.keep_history);
   showMic();
   $$("[data-pairs]").forEach((card) => renderPairs(card, s.options[card.dataset.pairs]));
@@ -569,6 +570,56 @@ function confirmClear(on, focus = true) {
   if (focus) (on ? $("[data-clear-cancel]") : $("[data-clear]")).focus();
 }
 
+// Home: the first-run checklist, until it's dismissed. The mic check listens only while the card
+// is on screen, and stops soon after it has heard you.
+
+const setup = { mic: false, try: false };
+let micCheck = "off"; // off, starting or on
+
+function renderSetup() {
+  const card = $("[data-setup]");
+  card.hidden = state.options.onboarded !== false;
+  const done = { ...setup, startup: !!state.startup };
+  $$("[data-step]", card).forEach((step) => {
+    const on = done[step.dataset.step];
+    step.classList.toggle("done", on);
+    $(".step-mark", step).innerHTML = on ? svg("check", 13) : `<span>${$$("[data-step]", card).indexOf(step) + 1}</span>`;
+  });
+  $("[data-setup-title]").textContent = Object.values(done).every(Boolean) ? "You're all set" : "Get set up";
+  syncMicCheck();
+}
+
+function syncMicCheck() {
+  const want = !$("[data-setup]").hidden && !setup.mic && document.visibilityState === "visible"
+    && $('[data-page="home"]').classList.contains("active");
+  if (want && micCheck === "off") {
+    micCheck = "starting";
+    bridge.startMicCheck((ok) => {
+      if (micCheck !== "starting") { if (ok) bridge.stopMicCheck(); return; }
+      micCheck = ok ? "on" : "off";
+      if (!ok) $("[data-mic-check]").textContent = "Couldn't open the microphone. Check Windows microphone access.";
+    });
+  } else if (!want && micCheck !== "off") {
+    micCheck = "off";
+    bridge.stopMicCheck();
+    if (!setup.mic) $("[data-meter]").style.transform = "scaleX(0)";
+  }
+}
+
+let heard = 0;
+function onMicLevel(level) {
+  if (micCheck !== "on" || setup.mic) return;
+  $("[data-meter]").style.transform = `scaleX(${Math.max(0.02, level)})`;
+  heard = level > 0.3 ? heard + 1 : 0;
+  if (heard >= 4) {
+    setup.mic = true;
+    $("[data-mic-check]").textContent = "Sounds good. Murmur can hear you.";
+    $("[data-meter]").style.transform = "scaleX(1)";
+    // Let the meter settle, then let go of the mic.
+    setTimeout(renderSetup, 1200);
+  }
+}
+
 // Navigation and wiring.
 
 function showPage(name) {
@@ -578,6 +629,7 @@ function showPage(name) {
   $$("[data-nav]").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   $$("[data-page]").forEach((p) => p.classList.toggle("active", p.dataset.page === name));
   $("main").scrollTop = 0;
+  syncMicCheck();
 }
 
 function wire() {
@@ -634,11 +686,17 @@ function wire() {
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-log]").onclick = () => bridge.openLog();
   $("[data-resume]").onclick = () => bridge.setPaused(false);
+  $("[data-setup-close]").onclick = () => { setOption("onboarded", true); renderSetup(); };
+  document.addEventListener("visibilitychange", syncMicCheck);
   $("[data-repo]").onclick = () => bridge.openRepo();
   $("[data-greeting]").textContent = greeting();
   // The try-it box is one line and grows with what's dictated into it.
   const tryBox = $("[data-try]");
-  tryBox.addEventListener("input", () => { tryBox.style.height = "auto"; tryBox.style.height = `${tryBox.scrollHeight}px`; });
+  tryBox.addEventListener("input", () => {
+    tryBox.style.height = "auto";
+    tryBox.style.height = `${tryBox.scrollHeight}px`;
+    if (tryBox.value.trim() && !setup.try) { setup.try = true; renderSetup(); }
+  });
   // The row menu closes on any click outside it, Esc, scrolling or leaving the window.
   document.addEventListener("mousedown", (e) => { if (!e.target.closest("[data-menu]")) closeMenu(); });
   document.addEventListener("keydown", (e) => {
@@ -667,6 +725,7 @@ function connect(b) {
   b.hotkeyRecorded.connect(onRecorded);
   b.speedResult.connect(onSpeed);
   b.startupChanged.connect(onStartup);
+  b.micLevel.connect(onMicLevel);
   loadState();
   loadHistory();
 }
@@ -677,11 +736,12 @@ function sampleBridge() {
     const slots = [];
     return { connect: (f) => slots.push(f), emit: (...a) => slots.forEach((f) => f(...a)) };
   };
-  const stateChanged = signal(), startupChanged = signal();
+  const stateChanged = signal(), startupChanged = signal(), micLevel = signal();
+  let micTimer = null;
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false, paused = false;
   const options = {
-    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, microphone: "", keep_history: "forever",
+    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, microphone: "", onboarded: new URLSearchParams(location.search).has("setup") ? false : true, keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
     snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };
@@ -697,7 +757,7 @@ function sampleBridge() {
     [now - 3 * d, "Meeting notes: ship the settings page, then the shortcut picker, then the new bar.", 6800, "notepad.exe"],
   ].map(([time, text, audioMs, app]) => ({ time, text, audioMs, app }));
   return {
-    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(), startupChanged,
+    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(), startupChanged, micLevel,
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
@@ -706,6 +766,16 @@ function sampleBridge() {
     setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
     setPaused(p) { paused = p; stateChanged.emit(); },
+    // A pretend voice for the mic check: a few seconds of quiet, then talking.
+    startMicCheck(cb) {
+      const t0 = Date.now();
+      micTimer = setInterval(() => {
+        const t = (Date.now() - t0) / 1000;
+        micLevel.emit(t < 2 ? 0.02 : 0.25 + 0.35 * Math.abs(Math.sin(t * 5)));
+      }, 50);
+      cb(true);
+    },
+    stopMicCheck() { clearInterval(micTimer); },
     setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
     microphones: (cb) => cb(JSON.stringify({
