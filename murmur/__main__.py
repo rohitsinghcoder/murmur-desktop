@@ -298,7 +298,11 @@ class App(QObject):
         self.pill.set_show_idle(self.settings["show_bar"])
         if self.dictation:
             # A microphone that isn't connected falls back to the default until it's back.
-            self.dictation.device = mics.find(self.settings["microphone"])
+            device = mics.find(self.settings["microphone"])
+            if device != self.dictation.device:
+                self.dictation.device = device
+                if not self.dictation.busy:
+                    self.dictation.close()  # the stream kept open is the old mic's
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting

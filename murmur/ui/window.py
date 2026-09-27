@@ -3,6 +3,7 @@
 The page talks to Murmur through `Bridge` over QWebChannel.
 """
 import json
+import logging
 import os
 import threading
 from pathlib import Path
@@ -22,6 +23,7 @@ WEB = Path(__file__).resolve().parent / "web"
 VERSION = "0.3.0"
 REPO = "https://github.com/rohitsinghcoder/murmur-desktop"
 DEFAULT_HOTKEY = ["rctrl"]
+log = logging.getLogger("murmur.window")
 
 
 class Bridge(QObject):
@@ -120,15 +122,17 @@ class Bridge(QObject):
     @Slot(result=str)
     def microphones(self) -> str:
         """The microphones to choose from, looking again for ones plugged in since the last time
-        (only while nothing is recording)."""
+        (only while nothing is recording: that restarts the audio system)."""
         a = self.app
         if not (a.dictation and a.dictation.busy):
             try:
+                if a.dictation:
+                    a.dictation.close()  # the stream kept open between dictations
                 mics.refresh()
                 if a.dictation:
                     a.dictation.device = mics.find(a.settings["microphone"])
             except Exception:
-                pass
+                log.warning("Couldn't look for microphones", exc_info=True)
         names = [d["name"] for d in mics.inputs()]
         return json.dumps({"default": mics.default_name(), "devices": names}, ensure_ascii=False)
 
