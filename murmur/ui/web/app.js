@@ -98,6 +98,7 @@ function applyState(s) {
   applyTheme(s.theme, s.resolvedTheme);
   $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
   $$("[data-option]").forEach((b) => setSwitch(b, s.options[b.dataset.option]));
+  setRadios($('[data-radios="keep_history"]'), s.options.keep_history);
 }
 
 // Settings saved as they change. Values go to Murmur as JSON.
@@ -469,9 +470,22 @@ function onStartup(error) {
   loadState();
 }
 
+// Settings: clearing history asks first, in place.
+
+function confirmClear(on, focus = true) {
+  $("[data-clear-idle]").hidden = on;
+  $("[data-clear-confirm]").hidden = !on;
+  const n = entries.length;
+  $("[data-clear-desc]").textContent = on
+    ? `Delete all ${n.toLocaleString()} ${n === 1 ? "dictation" : "dictations"}? This can't be undone.`
+    : "Deletes every dictation saved on this PC. This can't be undone.";
+  if (focus) (on ? $("[data-clear-cancel]") : $("[data-clear]")).focus();
+}
+
 // Navigation and wiring.
 
 function showPage(name) {
+  if (name !== "settings") confirmClear(false, false);
   if (recording && name !== "settings") { bridge.cancelHotkey(); setRecording(false); }
   $$("[data-nav]").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   $$("[data-page]").forEach((p) => p.classList.toggle("active", p.dataset.page === name));
@@ -516,6 +530,16 @@ function wire() {
   wireRadios($('[data-radios="theme"]'), (theme) => bridge.setTheme(theme));
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $$("[data-startup]").forEach((b) => (b.onclick = () => setStartup(!isOn(b))));
+  wireRadios($('[data-radios="keep_history"]'), (v) => setOption("keep_history", v));
+  $("[data-export]").onclick = () => bridge.exportHistory((message) => { if (message) toast(message); });
+  $("[data-clear]").onclick = () => confirmClear(true);
+  $("[data-clear-cancel]").onclick = () => confirmClear(false);
+  $("[data-clear-yes]").onclick = () => {
+    if (pending) { clearTimeout(pending.timer); pending = null; }
+    bridge.clearHistory();
+    confirmClear(false);
+    toast("History cleared");
+  };
   $$("[data-option]").forEach((b) => (b.onclick = () => { setSwitch(b, !isOn(b)); setOption(b.dataset.option, isOn(b)); }));
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-repo]").onclick = () => bridge.openRepo();
@@ -564,7 +588,7 @@ function sampleBridge() {
   const stateChanged = signal(), startupChanged = signal();
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false;
-  const options = { remove_fillers: true, digits: true };
+  const options = { remove_fillers: true, digits: true, keep_history: "forever" };
   const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
   light.addEventListener("change", () => stateChanged.emit());
   const now = Date.now(), m = 60000, d = 86400000;
@@ -587,6 +611,8 @@ function sampleBridge() {
     setTheme(t) { theme = t; stateChanged.emit(); },
     setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
+    exportHistory: (cb) => setTimeout(() => cb(`Exported ${sample.length} dictations`), 300),
+    clearHistory() { sample.length = 0; this.historyChanged.emit(); },
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},
     speedTest() {}, openDataFolder() {}, openRepo() {},
   };

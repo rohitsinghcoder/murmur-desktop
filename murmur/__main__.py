@@ -81,6 +81,7 @@ class App(QObject):
         self.pill.cancel_clicked.connect(self.on_click_cancel)
         self.pill.stop_clicked.connect(self.on_click_stop)
         self.pill.show()
+        self.apply_settings()
 
         # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
         # with Windows it often never is.
@@ -281,7 +282,14 @@ class App(QObject):
             return
         self.settings[key] = value
         settings.save(self.settings)
+        self.apply_settings()
         self.status_changed.emit()
+
+    def apply_settings(self):
+        """Hands the settings to the parts that use them: at start and after every change."""
+        history.keep = self.settings["keep_history"]
+        history.prune()
+        self.history_changed.emit()
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting

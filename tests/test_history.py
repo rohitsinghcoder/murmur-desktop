@@ -12,7 +12,12 @@ def store(tmp_path, monkeypatch):
     monkeypatch.setattr(history, "DIR", tmp_path)
     monkeypatch.setattr(history, "FILE", tmp_path / "history.jsonl")
     monkeypatch.setattr(history, "_OLD_FILE", tmp_path / "old" / "history.jsonl")
+    monkeypatch.setattr(history, "keep", "forever")
     return tmp_path
+
+
+def write(entries):
+    history.FILE.write_text("".join(json.dumps(e) + "\n" for e in entries), encoding="utf-8")
 
 
 def entry(text, audio_ms=6000, app="chrome.exe", days_ago=0.0):
@@ -55,6 +60,46 @@ def test_time_saved_against_typing():
 def test_time_saved_never_negative():
     s = history.stats([entry("one two three", audio_ms=600000)])
     assert s["timesFaster"] == 0.0 and s["minutesSaved"] == 0
+
+
+def test_keep_prunes_old_dictations(store):
+    write([entry("Two years ago.", days_ago=730), entry("Last month.", days_ago=40), entry("Today.")])
+    history.prune()
+    assert len(history.load()) == 3  # forever
+    history.keep = "year"
+    history.prune()
+    assert [e["text"] for e in history.load()] == ["Today.", "Last month."]
+    history.keep = "month"
+    history.add("Just now.", 1000, "notepad.exe")  # adding prunes too
+    assert [e["text"] for e in history.load()] == ["Just now.", "Today."]
+
+
+def test_keep_off_saves_nothing_new(store):
+    write([entry("Kept.")])
+    history.keep = "off"
+    history.add("Not saved.", 1000, "notepad.exe")
+    history.prune()
+    assert [e["text"] for e in history.load()] == ["Kept."]
+
+
+def test_clear(store):
+    history.add("Something.", 1000, "notepad.exe")
+    history.clear()
+    assert history.load() == []
+    history.clear()  # nothing to clear is fine
+
+
+@pytest.mark.parametrize("name", ["out.md", "out.txt"])
+def test_export(store, name):
+    write([entry("First.", days_ago=1), entry("Dear team,\nIt's out.")])
+    path = store / name
+    assert history.export(path) == 2
+    text = path.read_text(encoding="utf-8")
+    assert text.index("First.") < text.index("Dear team,")
+    if name.endswith(".md"):
+        assert text.startswith("# Murmur history") and "Dear team,  \nIt's out." in text
+    else:
+        assert "#" not in text and "It's out." in text
 
 
 def test_no_speech_no_stats():

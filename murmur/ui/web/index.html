@@ -147,6 +147,42 @@
       </div>
     </div>
 
+    <div class="group-label">History</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Keep history</div>
+          <div class="row-desc">How long your dictations stay on this PC. Off stops saving new ones.</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Keep history" data-radios="keep_history">
+          <button role="radio" data-value="forever">Forever</button>
+          <button role="radio" data-value="year">1 year</button>
+          <button role="radio" data-value="month">30 days</button>
+          <button role="radio" data-value="off">Off</button>
+        </div>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Export</div>
+          <div class="row-desc">Save everything you've dictated as a Markdown or text file.</div>
+        </div>
+        <button class="btn" data-export><span data-icon="export"></span>Export…</button>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Clear history</div>
+          <div class="row-desc" data-clear-desc>Deletes every dictation saved on this PC. This can't be undone.</div>
+        </div>
+        <div class="row-control" data-clear-idle>
+          <button class="btn" data-clear>Clear…</button>
+        </div>
+        <div class="row-control" data-clear-confirm hidden>
+          <button class="btn ghost" data-clear-cancel>Cancel</button>
+          <button class="btn danger" data-clear-yes><span data-icon="trash"></span>Delete all</button>
+        </div>
+      </div>
+    </div>
+
     <div class="group-label">Privacy</div>
     <div class="card">
       <div class="row">

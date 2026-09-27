@@ -12,7 +12,7 @@ from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QVBoxLayout, QWidget
+from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from .. import engine, history, settings, startup
 from .. import hotkey as hk
@@ -76,6 +76,25 @@ class Bridge(QObject):
     def deleteEntry(self, entry_time: float):
         history.delete(int(entry_time))
         self.historyChanged.emit()
+
+    @Slot()
+    def clearHistory(self):
+        history.clear()
+        self.historyChanged.emit()
+
+    @Slot(result=str)
+    def exportHistory(self) -> str:
+        """Asks where to save, then writes the history there. Returns what to tell the user."""
+        start = Path.home() / "Documents" / "Murmur history.md"
+        path, _ = QFileDialog.getSaveFileName(self.app.window, "Export history", str(start),
+                                              "Markdown (*.md);;Text (*.txt)")
+        if not path:
+            return ""
+        try:
+            n = history.export(Path(path))
+        except OSError as e:
+            return f"Couldn't export: {e.strerror or e}"
+        return f"Exported {n:,} {'dictation' if n == 1 else 'dictations'}"
 
     @Slot()
     def recordHotkey(self):

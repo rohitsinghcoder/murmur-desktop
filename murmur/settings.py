@@ -1,6 +1,7 @@
 """User settings in %USERPROFILE%\\.murmur\\settings.json."""
 import json
 
+from . import history
 from .history import DIR
 
 FILE = DIR / "settings.json"
@@ -10,11 +11,13 @@ DEFAULTS = {
     # Text cleanup (murmur/pipeline.py).
     "remove_fillers": True,
     "digits": True,
+    "keep_history": "forever",  # forever, year, month or off (history.KEEP)
 }
 # Settings the window may change with Bridge.setOption, and what each must look like.
 OPTIONS = {
     "remove_fillers": lambda v: isinstance(v, bool),
     "digits": lambda v: isinstance(v, bool),
+    "keep_history": lambda v: isinstance(v, str) and v in history.KEEP,
 }
 
 
