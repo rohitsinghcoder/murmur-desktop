@@ -84,9 +84,13 @@ function greeting() {
 function applyState(s) {
   state = s;
   $$("[data-hotkey]").forEach((el) => (el.innerHTML = keycaps(s.hotkey)));
+  // Paused (from the tray, or here) outranks the model's status.
   const status = $("[data-status]");
-  status.className = `status ${s.status}`;
-  $("[data-status-text]").textContent = s.statusText;
+  status.className = `status ${s.paused ? "paused" : s.status}`;
+  $("[data-status-text]").textContent = s.paused ? "Paused" : s.statusText;
+  $("[data-resume]").hidden = !s.paused;
+  $("[data-hint]").hidden = !!s.paused;
+  $("[data-paused-hint]").hidden = !s.paused;
   $("[data-try]").placeholder = `Try it: click here, hold ${s.hotkeyText} and speak`;
   $("[data-version]").textContent = `Version ${s.version} · Private voice typing for Windows`;
   $("[data-model]").textContent = s.model;
@@ -628,6 +632,8 @@ function wire() {
   };
   $$("[data-option]").forEach((b) => (b.onclick = () => { setSwitch(b, !isOn(b)); setOption(b.dataset.option, isOn(b)); }));
   $("[data-folder]").onclick = () => bridge.openDataFolder();
+  $("[data-log]").onclick = () => bridge.openLog();
+  $("[data-resume]").onclick = () => bridge.setPaused(false);
   $("[data-repo]").onclick = () => bridge.openRepo();
   $("[data-greeting]").textContent = greeting();
   // The try-it box is one line and grows with what's dictated into it.
@@ -673,7 +679,7 @@ function sampleBridge() {
   };
   const stateChanged = signal(), startupChanged = signal();
   const light = matchMedia("(prefers-color-scheme: light)");
-  let theme = "system", startup = false;
+  let theme = "system", startup = false, paused = false;
   const options = {
     remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, microphone: "", keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
@@ -695,10 +701,11 @@ function sampleBridge() {
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
-      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(), startup, options,
+      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(), startup, options, paused,
     })),
     setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
+    setPaused(p) { paused = p; stateChanged.emit(); },
     setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
     microphones: (cb) => cb(JSON.stringify({
@@ -708,7 +715,7 @@ function sampleBridge() {
     exportHistory: (cb) => setTimeout(() => cb(`Exported ${sample.length} dictations`), 300),
     clearHistory() { sample.length = 0; this.historyChanged.emit(); },
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},
-    speedTest() {}, openDataFolder() {}, openRepo() {},
+    speedTest() {}, openDataFolder() {}, openLog() {}, openRepo() {},
   };
 }
 

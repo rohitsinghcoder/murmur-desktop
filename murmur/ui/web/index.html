@@ -24,9 +24,10 @@
     <button class="nav-item" data-nav="about" title="About (Ctrl+3)"><span data-icon="info"></span>About</button>
   </nav>
   <div class="sidebar-foot">
-    <div class="hint">Hold <span data-hotkey></span> in any app to dictate.</div>
+    <div class="hint" data-hint>Hold <span data-hotkey></span> in any app to dictate.</div>
+    <div class="hint" data-paused-hint hidden>The shortcut and the bar won't dictate until you resume.</div>
     <div class="foot-row">
-      <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span></div>
+      <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span><button class="link" data-resume hidden>Resume</button></div>
       <button class="icon-btn theme-toggle" data-theme-toggle></button>
     </div>
   </div>
@@ -281,6 +282,13 @@
           <div class="row-desc mono" data-datadir></div>
         </div>
         <button class="btn" data-folder><span data-icon="folder"></span>Open folder</button>
+      </div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Log</div>
+          <div class="row-desc">What Murmur did and any errors, to help fix problems. It never includes what you said.</div>
+        </div>
+        <button class="btn" data-log><span data-icon="file"></span>Open log</button>
       </div>
     </div>
     <p class="footnote">Murmur is also on Android: github.com/rohitsinghcoder/Murmur</p>

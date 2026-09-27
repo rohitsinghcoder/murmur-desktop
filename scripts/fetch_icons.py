@@ -16,12 +16,13 @@ ICONS = {
     "alert": "warning-circle", "lock": "lock-simple", "keyboard": "keyboard", "github": "github-logo",
     "more": "dots-three", "sun": "sun", "moon": "moon", "monitor": "monitor",
     "export": "export", "plus": "plus", "close": "x", "caret": "caret-up-down", "arrow": "arrow-right",
+    "file": "file-text",
 }
 OUT = Path(__file__).resolve().parent.parent / "murmur" / "ui" / "web" / "icons.js"
 
 icons = {}
 for name, phosphor in ICONS.items():
-    svg = urllib.request.urlopen(BASE.format(phosphor)).read().decode()
+    svg = urllib.request.urlopen(BASE.format(phosphor), timeout=30).read().decode()
     inner = re.search(r"<svg[^>]*>(.*)</svg>", svg, re.S).group(1).strip()
     icons[name] = inner
 OUT.write_text(

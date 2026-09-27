@@ -15,7 +15,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
-from .. import engine, history, mics, settings, startup
+from .. import engine, history, logfile, mics, settings, startup
 from .. import hotkey as hk
 from . import style
 
@@ -44,6 +44,7 @@ class Bridge(QObject):
         app.hotkey_recorded.connect(self._recorded)
         app.speed_result.connect(self.speedResult)
         app.theme_changed.connect(lambda _: self.stateChanged.emit())
+        app.paused_changed.connect(lambda _: self.stateChanged.emit())
 
     @Slot(result=str)
     def state(self) -> str:
@@ -59,6 +60,8 @@ class Bridge(QObject):
             "loadSecs": a.load_secs,
             "lastLatencyMs": a.last_latency_ms,
             "dataDir": str(history.DIR),
+            "logFile": str(logfile.FILE),
+            "paused": a.paused,
             "theme": a.theme_setting,
             "resolvedTheme": a.theme,
             "startup": startup.enabled(),
@@ -156,6 +159,17 @@ class Bridge(QObject):
     def openDataFolder(self):
         history.DIR.mkdir(parents=True, exist_ok=True)
         os.startfile(history.DIR)
+
+    @Slot()
+    def openLog(self):
+        if logfile.FILE.exists():
+            os.startfile(logfile.FILE)
+        else:
+            self.openDataFolder()
+
+    @Slot(bool)
+    def setPaused(self, paused: bool):
+        self.app.set_paused(paused)
 
     @Slot()
     def openRepo(self):
