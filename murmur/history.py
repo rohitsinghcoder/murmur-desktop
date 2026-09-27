@@ -11,6 +11,9 @@ from pathlib import Path
 DIR = Path.home() / ".murmur"
 FILE = DIR / "history.jsonl"
 _OLD_FILE = Path(os.environ.get("APPDATA", Path.home())) / "Murmur" / "history.jsonl"
+# What inserter.foreground_app() calls Murmur's own window. Dictations into its try-it box are
+# practice: they're not saved, and older ones already saved are left out of history and stats.
+TRY_IT = "Murmur"
 
 
 def _migrate():
@@ -24,6 +27,8 @@ def _migrate():
 
 
 def add(text: str, audio_ms: int, app: str | None):
+    if app == TRY_IT:
+        return
     _migrate()
     DIR.mkdir(parents=True, exist_ok=True)
     entry = {"time": int(time.time() * 1000), "text": text, "audioMs": audio_ms, "app": app}
@@ -41,6 +46,7 @@ def delete(entry_time: int):
 
 def stats(entries: list[dict]) -> dict:
     """Words dictated, speaking speed (words per minute) and the current daily streak."""
+    entries = [e for e in entries if e.get("app") != TRY_IT]
     words = sum(len(e.get("text", "").split()) for e in entries)
     minutes = sum(e.get("audioMs", 0) for e in entries) / 60000
     days = {time.localtime(e["time"] / 1000)[:3] for e in entries if "time" in e}
@@ -64,7 +70,9 @@ def load() -> list[dict]:
     out = []
     for line in FILE.read_text(encoding="utf-8").splitlines():
         try:
-            out.append(json.loads(line))
+            entry = json.loads(line)
         except json.JSONDecodeError:
-            pass
+            continue
+        if entry.get("app") != TRY_IT:
+            out.append(entry)
     return out[::-1]
