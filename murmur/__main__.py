@@ -40,12 +40,18 @@ class App(QObject):
     status_changed = Signal()
     history_changed = Signal()
     hotkey_changed = Signal(list)
+    theme_changed = Signal(str)  # the theme in effect: light or dark
 
     def __init__(self, qt: QApplication):
         super().__init__()
         self.qt = qt
         self.settings = settings.load()
         self.hotkey: list[str] = self.settings["hotkey"]
+        self.theme_setting: str = self.settings["theme"]
+        self.theme = self._resolve_theme()
+        qt.setStyleSheet(style.menu_stylesheet(self.theme))
+        # With "system", follow Windows when its app theme changes.
+        qt.styleHints().colorSchemeChanged.connect(lambda _: self._apply_theme())
         self.status, self.status_text = "loading", "Loading speech model…"
         self.load_secs: float | None = None
         self.last_latency_ms: int | None = None
@@ -199,6 +205,26 @@ class App(QObject):
         self.tray.setToolTip(f"Murmur: hold {hotkey.describe(self.hotkey)} to dictate")
         self.hotkey_changed.emit(self.hotkey)
 
+    def _resolve_theme(self) -> str:
+        return style.system_theme() if self.theme_setting == "system" else self.theme_setting
+
+    def set_theme(self, setting: str):
+        if setting not in ("system", "light", "dark"):
+            return
+        self.theme_setting = setting
+        self.settings["theme"] = setting
+        settings.save(self.settings)
+        self._apply_theme()
+        self.status_changed.emit()  # the page shows which option is chosen
+
+    def _apply_theme(self):
+        theme = self._resolve_theme()
+        if theme == self.theme:
+            return
+        self.theme = theme
+        self.qt.setStyleSheet(style.menu_stylesheet(theme))
+        self.theme_changed.emit(theme)
+
     def run_speed_test(self):
         def run():
             import soundfile as sf
@@ -255,7 +281,6 @@ def main():
     qt.setWindowIcon(style.logo_icon())
     style.load_fonts()
     qt.setFont(QFont("Geist", 10))
-    qt.setStyleSheet(style.MENU_STYLESHEET)
 
     # One Murmur at a time: two keyboard hooks would both dictate. A second launch (Start menu,
     # setup.bat) just brings the running one's window to the front.

@@ -1,7 +1,7 @@
 "use strict";
 
 // ICONS comes from icons.js (Phosphor, regular weight).
-const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22 };
+const SIZES = { "try-icon": 19, search: 15, btn: 16, toast: 16, "row-lock": 22, "seg-icon": 15 };
 
 function svg(name, size = 18) {
   return `<svg width="${size}" height="${size}" viewBox="0 0 256 256" fill="currentColor">${ICONS[name]}</svg>`;
@@ -82,6 +82,34 @@ function applyState(s) {
   $("[data-datadir]").textContent = s.dataDir;
   $("[data-reset]").hidden = s.isDefaultHotkey || recording;
   $("[data-speed]").disabled = s.status !== "ready" || speedRunning;
+  applyTheme(s.theme, s.resolvedTheme);
+}
+
+// `setting` is system, light or dark; `resolved` is what that means right now.
+function applyTheme(setting, resolved) {
+  const root = document.documentElement;
+  if (root.dataset.theme !== resolved) {
+    root.classList.add("theming");
+    root.dataset.theme = resolved;
+    clearTimeout(applyTheme.timer);
+    applyTheme.timer = setTimeout(() => root.classList.remove("theming"), 350);
+  }
+  $$("[data-theme-option]").forEach((b) => {
+    const on = b.dataset.themeOption === setting;
+    b.classList.toggle("active", on);
+    b.setAttribute("aria-checked", on);
+  });
+  // The sidebar toggle shows where it will take you.
+  const toggle = $("[data-theme-toggle]");
+  const next = resolved === "dark" ? "light" : "dark";
+  toggle.title = `Switch to ${next} mode`;
+  if (toggle.dataset.next !== next) {
+    const first = !toggle.dataset.next;
+    toggle.dataset.next = next;
+    toggle.innerHTML = svg(next === "light" ? "sun" : "moon", 17);
+    toggle.classList.remove("turn");
+    if (!first) { void toggle.offsetWidth; toggle.classList.add("turn"); }
+  }
 }
 
 function loadState() { bridge.state((json) => applyState(JSON.parse(json))); }
@@ -333,6 +361,8 @@ function wire() {
     $("[data-speed-result]").textContent = "Transcribing a sample recording…";
     bridge.speedTest();
   };
+  $$("[data-theme-option]").forEach((b) => (b.onclick = () => bridge.setTheme(b.dataset.themeOption)));
+  $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $("[data-folder]").onclick = () => bridge.openDataFolder();
   $("[data-repo]").onclick = () => bridge.openRepo();
   $("[data-greeting]").textContent = greeting();
@@ -372,7 +402,15 @@ function connect(b) {
 
 // Outside Murmur (opened in a browser while designing), use sample data.
 function sampleBridge() {
-  const signal = () => ({ connect() {} });
+  const signal = () => {
+    const slots = [];
+    return { connect: (f) => slots.push(f), emit: (...a) => slots.forEach((f) => f(...a)) };
+  };
+  const stateChanged = signal();
+  const light = matchMedia("(prefers-color-scheme: light)");
+  let theme = "system";
+  const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
+  light.addEventListener("change", () => stateChanged.emit());
   const now = Date.now(), m = 60000, d = 86400000;
   const sample = [
     [now - 2 * m, "Can you send me the slides before the meeting at 3:30 PM? I want to go through them once.", 7200, "chrome.exe"],
@@ -383,12 +421,13 @@ function sampleBridge() {
     [now - 3 * d, "Meeting notes: ship the settings page, then the shortcut picker, then the new bar.", 6800, "notepad.exe"],
   ].map(([time, text, audioMs, app]) => ({ time, text, audioMs, app }));
   return {
-    stateChanged: signal(), historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(),
+    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(),
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
-      dataDir: "C:\\Users\\you\\.murmur",
+      dataDir: "C:\\Users\\you\\.murmur", theme, resolvedTheme: resolved(),
     })),
+    setTheme(t) { theme = t; stateChanged.emit(); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 89, wpm: 152, dictations: 6, streak: 2 } })),
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},
     speedTest() {}, openDataFolder() {}, openRepo() {},

@@ -39,6 +39,7 @@ class Bridge(QObject):
         app.history_changed.connect(self.historyChanged)
         app.hotkey_recorded.connect(self._recorded)
         app.speed_result.connect(self.speedResult)
+        app.theme_changed.connect(lambda _: self.stateChanged.emit())
 
     @Slot(result=str)
     def state(self) -> str:
@@ -54,6 +55,8 @@ class Bridge(QObject):
             "loadSecs": a.load_secs,
             "lastLatencyMs": a.last_latency_ms,
             "dataDir": str(history.DIR),
+            "theme": a.theme_setting,
+            "resolvedTheme": a.theme,
         })
 
     @Slot(result=str)
@@ -81,6 +84,10 @@ class Bridge(QObject):
     @Slot()
     def resetHotkey(self):
         self.app.set_hotkey(DEFAULT_HOTKEY)
+
+    @Slot(str)
+    def setTheme(self, setting: str):
+        self.app.set_theme(setting)
 
     @Slot()
     def speedTest(self):
@@ -116,7 +123,6 @@ class MainWindow(QWidget):
         self.setWindowIcon(style.logo_icon())
         self.resize(1080, 720)
         self.setMinimumSize(880, 600)
-        self.setStyleSheet(f"background: {style.BG};")
 
         lay = QVBoxLayout(self)
         lay.setContentsMargins(0, 0, 0, 0)
@@ -125,21 +131,32 @@ class MainWindow(QWidget):
         # page (owned by the view) is destroyed before its profile.
         self.profile = QWebEngineProfile(self)
         page = QWebEnginePage(self.profile, self.view)
-        page.setBackgroundColor(QColor(style.BG))  # no white flash while loading
         self.view.setPage(page)
         self.view.setContextMenuPolicy(Qt.NoContextMenu)
         self.bridge = Bridge(app)
         self.channel = QWebChannel(page)
         self.channel.registerObject("murmur", self.bridge)
         page.setWebChannel(self.channel)
-        page.load(QUrl.fromLocalFile(str(WEB / "index.html")))
+        # The theme rides in the URL so the first frame is already in it (no flash).
+        url = QUrl.fromLocalFile(str(WEB / "index.html"))
+        url.setQuery(f"theme={app.theme}")
+        self._apply_theme(app.theme)
+        app.theme_changed.connect(self._apply_theme)
+        page.load(url)
         lay.addWidget(self.view)
+
+    def _apply_theme(self, theme: str):
+        # The page eases its own colours; the frame and the fill behind the page follow.
+        self.setStyleSheet(f"background: {style.BG[theme]};")
+        self.view.page().setBackgroundColor(QColor(style.BG[theme]))
+        if self.isVisible():
+            style.title_bar(self, theme)
 
     def bring_to_front(self):
         if self.isMinimized():
             self.showNormal()
         self.show()
-        style.dark_title_bar(self)
+        style.title_bar(self, self.app.theme)
         self.raise_()
         self.activateWindow()
         self.bridge.historyChanged.emit()

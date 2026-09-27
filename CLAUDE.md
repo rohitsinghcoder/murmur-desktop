@@ -38,6 +38,11 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - Design: dark zinc neutrals, one accent (#e07a50, burnt orange), Geist + Geist Mono (bundled),
   Phosphor icons (generated `icons.js`), no gradients/glows, no purple. Logo is an M made of five
   waveform bars, middle bar in the accent; drawn in both `style.logo_image` and `app.js` LOGO.
+- Themes: settings `theme` is system/light/dark; System follows Windows via Qt's
+  `colorSchemeChanged`. Colours are tokens in `style.css` per `[data-theme]`; never hardcode one
+  in a rule. Dark shows depth by lightness, light by white surfaces with soft shadows, and uses
+  deeper accent/green/red for text. The hands-free bar and logo tile stay dark in both. The
+  theme is passed in the page URL so the first frame is right; title bar and tray menu follow.
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).

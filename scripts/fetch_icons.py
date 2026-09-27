@@ -14,7 +14,7 @@ ICONS = {
     "trash": "trash", "check": "check", "search": "magnifying-glass", "mic": "microphone",
     "folder": "folder-open", "external": "arrow-square-out", "zap": "lightning",
     "alert": "warning-circle", "lock": "lock-simple", "keyboard": "keyboard", "github": "github-logo",
-    "more": "dots-three",
+    "more": "dots-three", "sun": "sun", "moon": "moon", "monitor": "monitor",
 }
 OUT = Path(__file__).resolve().parent.parent / "murmur" / "ui" / "web" / "icons.js"
 

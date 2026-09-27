@@ -6,7 +6,8 @@ from pathlib import Path
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
 from PySide6.QtGui import QColor, QFontDatabase, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-BG = "#0d0d0f"
+# Window background per theme, matching --bg in web/style.css.
+BG = {"dark": "#0d0d0f", "light": "#ffffff"}
 FONTS = Path(__file__).resolve().parent / "web" / "fonts"
 
 # The logo: five bars of a voice waveform, shaped like an M, on a charcoal tile. The middle bar
@@ -79,21 +80,36 @@ def write_ico(path, sizes=(16, 20, 24, 32, 40, 48, 64, 128, 256)):
         f.write(header + entries + blobs)
 
 
-def dark_title_bar(widget):
-    """Dark window frame on Windows 10/11, blended with the window background."""
+def system_theme() -> str:
+    """Windows' app theme (Settings > Personalization > Colors)."""
+    from PySide6.QtGui import QGuiApplication
+    return "light" if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Light else "dark"
+
+
+def title_bar(widget, theme: str):
+    """Window frame on Windows 10/11 in the theme, blended with the window background."""
     hwnd = int(widget.winId())
     dwm = ctypes.windll.dwmapi
-    on = ctypes.c_int(1)
-    dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(on), ctypes.sizeof(on))  # immersive dark mode
-    color = QColor(BG)
+    dark = ctypes.c_int(theme == "dark")
+    dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(dark), ctypes.sizeof(dark))  # immersive dark mode
+    color = QColor(BG[theme])
     colorref = ctypes.c_int(color.red() | color.green() << 8 | color.blue() << 16)
     dwm.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(colorref), ctypes.sizeof(colorref))  # caption (Win 11)
 
 
-MENU_STYLESHEET = """
-QMenu { background: #161618; color: #ededee; border: 1px solid #27272b; border-radius: 8px; padding: 4px; }
-QMenu::item { padding: 7px 22px 7px 12px; border-radius: 6px; }
-QMenu::item:selected { background: #222226; }
-QMenu::item:disabled { color: #8e8e95; }
-QMenu::separator { height: 1px; background: #27272b; margin: 4px 8px; }
+# The tray menu, like the row menu in web/style.css.
+_MENU = """
+QMenu {{ background: {bg}; color: {text}; border: 1px solid {line}; border-radius: 8px; padding: 4px; }}
+QMenu::item {{ padding: 7px 22px 7px 12px; border-radius: 6px; }}
+QMenu::item:selected {{ background: {hover}; }}
+QMenu::item:disabled {{ color: {dim}; }}
+QMenu::separator {{ height: 1px; background: {line}; margin: 4px 8px; }}
 """
+_MENU_COLORS = {
+    "dark": {"bg": "#161618", "text": "#ededee", "line": "#27272b", "hover": "#222226", "dim": "#8e8e95"},
+    "light": {"bg": "#ffffff", "text": "#18181b", "line": "#e4e4e7", "hover": "#f4f4f5", "dim": "#686870"},
+}
+
+
+def menu_stylesheet(theme: str) -> str:
+    return _MENU.format(**_MENU_COLORS[theme])

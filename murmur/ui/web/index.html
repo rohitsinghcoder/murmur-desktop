@@ -2,8 +2,13 @@
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <title>Murmur</title>
+<script>
+  // Paint in the right theme from the first frame: Murmur passes it in the URL.
+  document.documentElement.dataset.theme = new URLSearchParams(location.search).get("theme")
+    || (matchMedia("(prefers-color-scheme: light)").matches ? "light" : "dark");
+</script>
 <link rel="stylesheet" href="style.css">
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
@@ -20,7 +25,10 @@
   </nav>
   <div class="sidebar-foot">
     <div class="hint">Hold <span data-hotkey></span> in any app to dictate.</div>
-    <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span></div>
+    <div class="foot-row">
+      <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span></div>
+      <button class="icon-btn theme-toggle" data-theme-toggle></button>
+    </div>
   </div>
 </aside>
 
@@ -91,6 +99,21 @@
       <div class="card-foot">
         <span>Right Alt, F9 and Ctrl + Shift + Space all work well.</span>
         <button class="link" data-reset hidden>Reset to Right Ctrl</button>
+      </div>
+    </div>
+
+    <div class="group-label">Appearance</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Theme</div>
+          <div class="row-desc">System follows your Windows setting.</div>
+        </div>
+        <div class="segmented" role="radiogroup" aria-label="Theme">
+          <button role="radio" data-theme-option="system"><span class="seg-icon" data-icon="monitor"></span>System</button>
+          <button role="radio" data-theme-option="light"><span class="seg-icon" data-icon="sun"></span>Light</button>
+          <button role="radio" data-theme-option="dark"><span class="seg-icon" data-icon="moon"></span>Dark</button>
+        </div>
       </div>
     </div>
 

@@ -4,7 +4,7 @@ import json
 from .history import DIR
 
 FILE = DIR / "settings.json"
-DEFAULTS = {"hotkey": ["rctrl"]}
+DEFAULTS = {"hotkey": ["rctrl"], "theme": "system"}  # theme: system, light or dark
 
 
 def load() -> dict:
