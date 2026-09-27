@@ -1,0 +1,4 @@
+* text=auto
+# cmd.exe misreads labels in batch files with Unix line endings.
+*.bat text eol=crlf
+*.ps1 text eol=crlf

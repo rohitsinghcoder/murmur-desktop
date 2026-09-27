@@ -1,0 +1,6 @@
+sherpa-onnx==1.13.8
+sounddevice
+numpy
+soundfile
+PySide6-Essentials
+pytest
