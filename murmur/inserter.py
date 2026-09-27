@@ -239,10 +239,54 @@ def paste(text: str, space_before=False) -> str:
     return "paste"
 
 
-def foreground_pid() -> int:
+WINEVENTPROC = ctypes.WINFUNCTYPE(None, wintypes.HANDLE, wintypes.DWORD, wintypes.HWND, wintypes.LONG,
+                                  wintypes.LONG, wintypes.DWORD, wintypes.DWORD)
+user32.SetWinEventHook.argtypes = [wintypes.DWORD, wintypes.DWORD, wintypes.HMODULE, WINEVENTPROC,
+                                   wintypes.DWORD, wintypes.DWORD, wintypes.DWORD]
+user32.SetWinEventHook.restype = wintypes.HANDLE
+user32.GetClassNameW.argtypes = [wintypes.HWND, wintypes.LPWSTR, ctypes.c_int]
+user32.SetForegroundWindow.argtypes = [wintypes.HWND]
+user32.IsWindow.argtypes = [wintypes.HWND]
+EVENT_SYSTEM_FOREGROUND = 0x3
+WINEVENT_SKIPOWNPROCESS = 0x2
+# The taskbar, its tray overflow and the desktop: where the user goes to reach Murmur's tray menu.
+_SHELL_CLASSES = {"Shell_TrayWnd", "Shell_SecondaryTrayWnd", "NotifyIconOverflowWindow",
+                  "TopLevelWindowForOverflowXamlIsland", "Progman", "WorkerW"}
+
+
+class LastAppWindow:
+    """Remembers the last app window the user was in, other than Murmur and the taskbar, so a
+    tray menu command can go back to it. Create it on the UI thread: the events arrive there."""
+
+    def __init__(self):
+        self.hwnd = None
+        self._proc = WINEVENTPROC(self._changed)  # kept referenced so it isn't garbage collected
+        self._hook = user32.SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND, None,
+                                            self._proc, 0, 0, WINEVENT_SKIPOWNPROCESS)
+        self._changed(None, 0, user32.GetForegroundWindow(), 0, 0, 0, 0)
+
+    def _changed(self, hook, event, hwnd, obj, child, thread, time_ms):
+        name = ctypes.create_unicode_buffer(64)
+        if (hwnd and user32.GetClassNameW(hwnd, name, 64) and name.value not in _SHELL_CLASSES
+                and window_pid(hwnd) != os.getpid()):
+            self.hwnd = hwnd
+
+    def activate(self) -> bool:
+        """Brings that window back to the front. False if it's gone or Windows refused."""
+        if not self.hwnd or not user32.IsWindow(self.hwnd):
+            return False
+        user32.SetForegroundWindow(self.hwnd)
+        return user32.GetForegroundWindow() == self.hwnd
+
+
+def window_pid(hwnd) -> int:
     pid = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
     return pid.value
+
+
+def foreground_pid() -> int:
+    return window_pid(user32.GetForegroundWindow())
 
 
 def focus_window() -> tuple[int, int] | None:

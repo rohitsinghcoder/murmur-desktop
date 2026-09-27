@@ -82,6 +82,27 @@ def test_typing_is_noticed_but_the_hotkey_is_not(keys):
     assert keys.typed_at == 100.0  # dictating doesn't count as typing
 
 
+def test_paused_hotkey_does_nothing_until_resumed(keys):
+    keys.pause(True)
+    keys._on_key(RCTRL, True)
+    wait(keys, 1)
+    keys._on_key(RCTRL, False)
+    keys.set_hotkey(["ctrl", "shift", "vk_20"])
+    keys.pause(True)
+    keys._on_key(CTRL_L, True)
+    keys._on_key(SHIFT_L, True)
+    assert keys._on_key(SPACE, True) is False  # not swallowed either
+    keys._on_key(SPACE, False)
+    keys._on_key(SHIFT_L, False)
+    keys._on_key(CTRL_L, False)
+    assert keys.events == []
+    keys.pause(False)
+    keys._on_key(CTRL_L, True)
+    keys._on_key(SHIFT_L, True)
+    keys._on_key(SPACE, True)
+    assert keys.events == ["start"]
+
+
 def test_escape_when_idle_passes_through(keys):
     assert keys._on_key(ESC, True) is False
     assert keys.events == []

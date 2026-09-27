@@ -12,7 +12,7 @@ import threading
 import time
 
 import numpy as np
-from PySide6.QtCore import QObject, Signal
+from PySide6.QtCore import QObject, QTimer, Signal
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
@@ -26,6 +26,9 @@ INSTANCE = f"MurmurDesktop-{getpass.getuser()}"
 log = logging.getLogger("murmur.app")
 # A dictation shorter than this that heard nothing was most likely a stray press: no message.
 NOTHING_HEARD_MIN_MS = 600
+# Dictations in the tray's Recent menu, and how much of each it shows.
+RECENT = 5
+RECENT_CHARS = 48
 
 
 class App(QObject):
@@ -48,6 +51,7 @@ class App(QObject):
     history_changed = Signal()
     hotkey_changed = Signal(list)
     theme_changed = Signal(str)  # the theme in effect: light or dark
+    paused_changed = Signal(bool)
 
     def __init__(self, qt: QApplication):
         super().__init__()
@@ -65,6 +69,7 @@ class App(QObject):
         self.dictation: dictation.Dictation | None = None
         self.target_app: str | None = None
         self.testing_speed = False
+        self.paused = False  # from the tray: the hotkey and the bar don't dictate
         self._told_about_tray = False
         # For a space between dictations: what's before the caret, or else where the last one went.
         self.caret = spacing.CaretReader()
@@ -87,11 +92,19 @@ class App(QObject):
         self.status_action = QAction(self.status_text, enabled=False)
         menu.addAction(self.status_action)
         menu.addSeparator()
+        self.paste_last_action = menu.addAction("Paste last dictation", self.paste_last)
+        self.copy_last_action = menu.addAction("Copy last dictation", self.copy_last)
+        self.recent_menu = menu.addMenu("Recent")
+        menu.addSeparator()
+        self.pause_action = menu.addAction("Pause Murmur", lambda: self.set_paused(not self.paused))
         menu.addAction("Quit Murmur", self.quit)
+        menu.aboutToShow.connect(self._fill_menu)
         self.menu = menu
+        # The menu takes focus; "Paste last dictation" goes back to the app the user was in.
+        self.last_window = inserter.LastAppWindow()
         self.tray.setContextMenu(menu)
         self.tray.activated.connect(self._tray_clicked)
-        self.tray.setToolTip("Murmur: loading…")
+        self._update_tray()
         self.tray.show()
 
         self.loaded.connect(self.on_loaded)
@@ -134,6 +147,8 @@ class App(QObject):
         self.loaded.emit(time.perf_counter() - t0)
 
     def _hint(self) -> str:
+        if self.paused:
+            return "Murmur is paused. Resume it from the tray icon."
         return f"Click or hold {hotkey.describe(self.hotkey)} to dictate"
 
     def _set_status(self, status: str, text: str):
@@ -144,18 +159,21 @@ class App(QObject):
     def on_loaded(self, secs: float):
         self.load_secs = secs
         self._set_status("ready", "Ready")
-        self.tray.setIcon(style.logo_icon())
-        self.tray.setToolTip(f"Murmur: hold {hotkey.describe(self.hotkey)} to dictate")
+        self._update_tray()
         self.pill.ready(self._hint())
 
     def on_load_failed(self, message: str):
         self._set_status("error", "Couldn't load the speech model")
+        self._update_tray()
         self.pill.ready(self._hint())
         self.pill.show_message(f"Couldn't load the speech model: {message}", error=True, ms=8000)
 
     # Dictation (UI thread).
 
     def _listen(self, hands_free: bool) -> bool:
+        if self.paused:
+            self.pill.show_message(self._hint(), ms=2500)
+            return False
         if self.dictation is None:
             self.pill.show_message("Still loading the speech model…", ms=1500)
             return False
@@ -203,27 +221,30 @@ class App(QObject):
         self.pill.rest()
         self.last_latency_ms = latency_ms
         if text.strip():
-            window = inserter.focus_window()
             read, self._caret_read = self._caret_read, (None, 0.0)
-            before = self.caret.result(*read)
-            follows = self.last_insert.follows(window, self.keys.typed_at, time.monotonic())
-            space = spacing.needs_space(text, before, follows)
-            how = inserter.paste(text, space_before=space)
-            if how != "copy":
-                self.last_insert.record(window, time.monotonic())
+            how = self._insert(text, *read)
             # Lengths and timings only: never what was said.
-            log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s%s",
-                     len(text), audio_ms, latency_ms, self.target_app, how, ", after a space" if space else "")
-            if how == "copy":
-                self.pill.show_message("Can't type into apps run as administrator. Copied instead.",
-                                       ms=5000)
-            else:
-                self.pill.done()
+            log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
+                     len(text), audio_ms, latency_ms, self.target_app, how)
             history.add(text, audio_ms, self.target_app)
             self.history_changed.emit()
         elif audio_ms >= NOTHING_HEARD_MIN_MS:
             self.pill.show_message("Didn't catch that", ms=1800)
         self.status_changed.emit()
+
+    def _insert(self, text: str, read, read_started: float) -> str:
+        """Types text into the focused app, after a space if it would run into what's there."""
+        window = inserter.focus_window()
+        before = self.caret.result(read, read_started)
+        follows = self.last_insert.follows(window, self.keys.typed_at, time.monotonic())
+        space = spacing.needs_space(text, before, follows)
+        how = inserter.paste(text, space_before=space)
+        if how == "copy":
+            self.pill.show_message("Can't type into apps run as administrator. Copied instead.", ms=5000)
+        else:
+            self.last_insert.record(window, time.monotonic())
+            self.pill.done()
+        return how + (" after a space" if space else "")
 
     def on_error(self, message: str):
         log.error("%s", message)
@@ -250,7 +271,7 @@ class App(QObject):
         settings.save(self.settings)
         self.keys.set_hotkey(self.hotkey)
         self.pill.set_hint(self._hint())
-        self.tray.setToolTip(f"Murmur: hold {hotkey.describe(self.hotkey)} to dictate")
+        self._update_tray()
         self.hotkey_changed.emit(self.hotkey)
 
     def _resolve_theme(self) -> str:
@@ -303,6 +324,65 @@ class App(QObject):
     def _tray_clicked(self, reason):
         if reason == QSystemTrayIcon.Trigger:
             self.show_window()
+
+    def _update_tray(self):
+        if self.paused:
+            tip = "Murmur: paused"
+        elif self.status == "ready":
+            tip = f"Murmur: hold {hotkey.describe(self.hotkey)} to dictate"
+        else:
+            tip = f"Murmur: {self.status_text[0].lower()}{self.status_text[1:]}"
+        self.tray.setIcon(style.logo_icon(gray=self.paused or self.status != "ready"))
+        self.tray.setToolTip(tip)
+
+    def _fill_menu(self):
+        entries = history.load()[:RECENT]
+        self.paste_last_action.setEnabled(bool(entries))
+        self.copy_last_action.setEnabled(bool(entries))
+        self.recent_menu.setEnabled(bool(entries))
+        self.recent_menu.clear()
+        for entry in entries:
+            text = entry.get("text", "")
+            label = " ".join(text.split())
+            if len(label) > RECENT_CHARS:
+                label = label[:RECENT_CHARS - 1].rstrip() + "…"
+            self.recent_menu.addAction(label.replace("&", "&&"), lambda text=text: self.copy_text(text))
+
+    def _last_text(self) -> str | None:
+        entries = history.load()
+        return entries[0].get("text") if entries else None
+
+    def copy_text(self, text: str):
+        if inserter.copy(text):
+            self.pill.show_message("Copied", ms=1200)
+
+    def copy_last(self):
+        if text := self._last_text():
+            self.copy_text(text)
+
+    def paste_last(self):
+        text = self._last_text()
+        if not text:
+            return
+        # Back to the app the user was in before the tray menu, then paste once it has focus.
+        if not self.last_window.activate():
+            if inserter.copy(text):
+                self.pill.show_message("Couldn't get back to the app. Copied instead.", ms=3000)
+            return
+        QTimer.singleShot(150, lambda: log.info("Pasted the last dictation again by %s",
+                                                self._insert(text, self.caret.start(), time.monotonic())))
+
+    def set_paused(self, paused: bool):
+        """Paused, the hotkey and the bar don't dictate (until resumed from the tray)."""
+        self.paused = paused
+        self.keys.pause(paused)
+        if paused and self.dictation and self.dictation.busy:
+            self.on_cancel()
+        self.pause_action.setText("Resume Murmur" if paused else "Pause Murmur")
+        self._update_tray()
+        self.pill.set_hint(self._hint())
+        log.info("Paused" if paused else "Resumed")
+        self.paused_changed.emit(paused)
 
     def window_closed(self):
         if not self._told_about_tray:

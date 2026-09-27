@@ -163,6 +163,7 @@ class HoldToTalk:
         self._down_at = 0.0
         # When a key other than the hotkey was last pressed: typing may have moved the caret.
         self.typed_at = 0.0
+        self.paused = False  # the hotkey does nothing (and every key passes through)
         self._timer: threading.Timer | None = None
         self._lock = threading.RLock()
         self._thread_id = 0
@@ -216,6 +217,13 @@ class HoldToTalk:
             self._cancel_timer()
             self._state = IDLE
 
+    def pause(self, paused: bool):
+        with self._lock:
+            self.paused = paused
+            self._cancel_timer()
+            self._state = IDLE
+            self._swallowed.clear()
+
     def _loop(self, ready: threading.Event):
         self._thread_id = kernel32.GetCurrentThreadId()
         hook = user32.SetWindowsHookExW(WH_KEYBOARD_LL, self._proc, kernel32.GetModuleHandleW(None), 0)
@@ -253,6 +261,10 @@ class HoldToTalk:
             else:
                 self._down.discard(vk)
             now = self._active()
+            if down and vk not in self._all_vks:
+                self.typed_at = time.monotonic()
+            if self.paused:
+                return False
 
             if vk in self._all_vks:
                 if not repeat and now and not was:
@@ -272,8 +284,6 @@ class HoldToTalk:
                         return True
                 return False
 
-            if down:
-                self.typed_at = time.monotonic()
             if not down or self._state == IDLE:
                 return False
             if vk == VK_ESCAPE:
