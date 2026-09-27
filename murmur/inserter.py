@@ -13,6 +13,7 @@ from pathlib import Path
 
 user32 = ctypes.WinDLL("user32", use_last_error=True)
 kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+advapi32 = ctypes.WinDLL("advapi32", use_last_error=True)
 
 CF_UNICODETEXT = 13
 GMEM_MOVEABLE = 0x0002
@@ -21,6 +22,8 @@ KEYEVENTF_KEYUP = 0x2
 KEYEVENTF_UNICODE = 0x4
 VK_CONTROL, VK_V = 0x11, 0x56
 PROCESS_QUERY_LIMITED_INFORMATION = 0x1000
+TOKEN_QUERY = 0x8
+TOKEN_INTEGRITY_LEVEL = 25  # TOKEN_INFORMATION_CLASS
 
 # Time the target app gets to read the clipboard before the old contents come back.
 RESTORE_AFTER_S = 0.5
@@ -48,8 +51,17 @@ for name, args, res in [
     ("OpenProcess", [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD], wintypes.HANDLE),
     ("CloseHandle", [wintypes.HANDLE], wintypes.BOOL),
     ("QueryFullProcessImageNameW", [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
+    ("GetCurrentProcess", [], wintypes.HANDLE),
 ]:
     fn = getattr(kernel32, name)
+    fn.argtypes, fn.restype = args, res
+for name, args, res in [
+    ("OpenProcessToken", [wintypes.HANDLE, wintypes.DWORD, ctypes.POINTER(wintypes.HANDLE)], wintypes.BOOL),
+    ("GetTokenInformation", [wintypes.HANDLE, ctypes.c_int, ctypes.c_void_p, wintypes.DWORD, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
+    ("GetSidSubAuthorityCount", [ctypes.c_void_p], ctypes.POINTER(ctypes.c_ubyte)),
+    ("GetSidSubAuthority", [ctypes.c_void_p, wintypes.DWORD], ctypes.POINTER(wintypes.DWORD)),
+]:
+    fn = getattr(advapi32, name)
     fn.argtypes, fn.restype = args, res
 
 
@@ -129,7 +141,8 @@ def _read_clipboard() -> tuple[bool, str | None]:
         user32.CloseClipboard()
 
 
-def _write_clipboard(text: str | None) -> bool:
+def _write_clipboard(text: str | None, temporary=True) -> bool:
+    """Temporary text (ours, only there to be pasted) is kept out of clipboard history."""
     if not _open_clipboard():
         return False
     try:
@@ -139,13 +152,18 @@ def _write_clipboard(text: str | None) -> bool:
             if not user32.SetClipboardData(CF_UNICODETEXT, h):
                 kernel32.GlobalFree(h)
                 return False
-        for fmt in _EXCLUDE_FROM_HISTORY:
+        for fmt in _EXCLUDE_FROM_HISTORY if temporary else []:
             h = _global(b"\0\0\0\0")
             if not user32.SetClipboardData(fmt, h):
                 kernel32.GlobalFree(h)
         return True
     finally:
         user32.CloseClipboard()
+
+
+def copy(text: str) -> bool:
+    """Puts text on the clipboard to stay, like the user copied it."""
+    return _write_clipboard(text, temporary=False)
 
 
 def _wait_readable(timeout=0.5) -> bool:
@@ -183,7 +201,12 @@ def type_keys(text: str):
 
 
 def paste(text: str) -> str:
-    """Puts text into the focused app. Returns how: "paste" or "type"."""
+    """Puts text into the focused app. Returns how: "paste" or "type", or "copy" when the app
+    runs as administrator: Windows drops our keystrokes there, so the text is left on the
+    clipboard for the user to paste instead."""
+    if foreground_elevated():
+        copy(text)
+        return "copy"
     restorable, previous = _read_clipboard()
     if not restorable or not _write_clipboard(text):
         type_keys(text)
@@ -221,3 +244,38 @@ def foreground_app() -> str | None:
         return None
     finally:
         kernel32.CloseHandle(h)
+
+
+def _integrity(process) -> int | None:
+    """Integrity level of a process handle: 0x2000 normal, 0x3000 administrator."""
+    token = wintypes.HANDLE()
+    if not advapi32.OpenProcessToken(process, TOKEN_QUERY, ctypes.byref(token)):
+        return None
+    try:
+        buf = ctypes.create_string_buffer(64)
+        size = wintypes.DWORD()
+        if not advapi32.GetTokenInformation(token, TOKEN_INTEGRITY_LEVEL, buf, len(buf), ctypes.byref(size)):
+            return None
+        sid = ctypes.cast(buf, ctypes.POINTER(ctypes.c_void_p))[0]  # TOKEN_MANDATORY_LABEL.Label.Sid
+        count = advapi32.GetSidSubAuthorityCount(sid)[0]
+        return advapi32.GetSidSubAuthority(sid, count - 1)[0]
+    finally:
+        kernel32.CloseHandle(token)
+
+
+_own_integrity = _integrity(kernel32.GetCurrentProcess())
+
+
+def foreground_elevated() -> bool:
+    """Whether the focused app runs at a higher integrity level than Murmur (as administrator),
+    where Windows silently drops the keystrokes we send."""
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    if not h:
+        return False
+    try:
+        level = _integrity(h)
+    finally:
+        kernel32.CloseHandle(h)
+    return level is not None and _own_integrity is not None and level > _own_integrity

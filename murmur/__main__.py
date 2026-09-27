@@ -201,7 +201,11 @@ class App(QObject):
             # Lengths and timings only: never what was said.
             log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
                      len(text), audio_ms, latency_ms, self.target_app, how)
-            self.pill.done()
+            if how == "copy":
+                self.pill.show_message("Can't type into apps run as administrator. Copied instead.",
+                                       ms=5000)
+            else:
+                self.pill.done()
             history.add(text, audio_ms, self.target_app)
             self.history_changed.emit()
         elif audio_ms >= NOTHING_HEARD_MIN_MS:
