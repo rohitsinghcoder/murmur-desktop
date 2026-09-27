@@ -37,6 +37,12 @@ def test_snippets_are_typed_as_written():
     assert pipeline.process("Thanks all. Sign off.", s) == "Thanks all. cheers,\nrohit 2."
 
 
+def test_voice_commands():
+    text = "Hi Sam, new line, um, the build is fixed."
+    assert pipeline.process(text, DEFAULTS) == "Hi Sam,\nThe build is fixed."
+    assert "\n" not in pipeline.process(text, {**DEFAULTS, "voice_commands": False})
+
+
 def test_settings_validation():
     assert settings.valid("dictionary", [["a b", "c"]])
     assert not settings.valid("dictionary", [["a b", ""]])

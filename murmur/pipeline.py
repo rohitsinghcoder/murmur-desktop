@@ -2,9 +2,9 @@
 
 First cleanup.tidy's steps (the Android app's cleanup; cleanup.py and numbers.py stay
 line-for-line ports, and the switches only pick which of their steps run), then the user's
-dictionary and snippets.
+dictionary, "new line" and "new paragraph", and snippets.
 """
-from . import cleanup, numbers, replace
+from . import cleanup, commands, numbers, replace
 
 
 def process(text: str, settings: dict) -> str:
@@ -16,5 +16,7 @@ def process(text: str, settings: dict) -> str:
     # that's formatting, not turning words into digits.
     text = numbers.tidy_digits(text)
     text = replace.dictionary(text, settings.get("dictionary", ()))
+    if settings.get("voice_commands", True):
+        text = commands.apply(text)
     # Snippets last, so what they type is exactly what the user wrote.
     return replace.snippets(text, settings.get("snippets", ()))
