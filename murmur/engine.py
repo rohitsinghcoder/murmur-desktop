@@ -4,6 +4,7 @@ Unlike the Android app's streaming model, Parakeet hears a whole utterance at on
 clearly better punctuation and no stray capitals where a streaming model split at a pause. The
 model is large (~630 MB), so it is loaded once and kept in memory.
 """
+import sys
 import threading
 from pathlib import Path
 
@@ -12,7 +13,10 @@ import sherpa_onnx
 
 SAMPLE_RATE = 16000
 MODEL_NAME = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
-MODEL_DIR = Path(__file__).resolve().parent.parent / "models" / MODEL_NAME
+# The installed (frozen) app keeps the model with the user's data in ~/.murmur, where the installer
+# puts it, so upgrading Murmur doesn't download it again.
+FROZEN = getattr(sys, "frozen", False)
+MODEL_DIR = (Path.home() / ".murmur" if FROZEN else Path(__file__).resolve().parent.parent) / "models" / MODEL_NAME
 MODEL_LABEL = "NVIDIA Parakeet TDT 0.6B v2 (int8)"
 
 _lock = threading.Lock()
@@ -36,7 +40,8 @@ def load(num_threads: int = 4, directory: Path = MODEL_DIR) -> sherpa_onnx.Offli
         if _recognizer is not None:
             return _recognizer
         if not is_model_installed(directory):
-            raise FileNotFoundError(f"Speech model not found in {directory}. Run scripts/fetch_model.py.")
+            fix = "Run the Murmur installer again to download it" if FROZEN else "Run scripts/fetch_model.py"
+            raise FileNotFoundError(f"Speech model not found in {directory}. {fix}.")
         _recognizer = sherpa_onnx.OfflineRecognizer.from_transducer(
             encoder=str(_find(directory, "encoder")),
             decoder=str(_find(directory, "decoder")),
