@@ -35,6 +35,7 @@ def test_add_and_delete(store):
 
 def test_try_it_box_is_not_saved(store):
     history.add("Just testing.", 1000, history.TRY_IT)
+    history.add("\n", 1000, "notepad.exe")  # "new line" on its own: typed, but nothing to keep
     assert history.load() == []
 
 

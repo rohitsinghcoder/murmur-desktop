@@ -25,6 +25,14 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   `dictation.py`: mic loop (after `DictationService.runSession`) and `Session`.
 - `cleanup.py`, `numbers.py`: line-for-line ports of `Cleanup.kt`, `Numbers.kt`, plus
   `numbers.tidy_digits` for numbers the model already writes as digits (3.30pm, 500 rupees).
+- `pipeline.process(text, settings)`: what `Dictation(tidy=...)` runs on a transcript: the
+  cleanup steps the switches allow (defaults == `cleanup.tidy`), then `replace.dictionary`,
+  `commands.apply` ("new line"/"new paragraph"), `replace.snippets` last (typed verbatim).
+  New text processing goes in its own module here, never in cleanup/numbers.
+- `settings.py`: keys in DEFAULTS; ones the window may set are in OPTIONS with a validator
+  (`Bridge.setOption` -> `App.set_option` -> `App.apply_settings`, which pushes them to history
+  retention, sounds, the pill, the mic). `mics.py` (mics by name, MME's 31-char names expanded,
+  level `Monitor`), `sounds.py` (QSoundEffect, lazy), `startup.py` (Startup .lnk via PowerShell).
 - `hotkey.py`: WH_KEYBOARD_LL hook; hold / double-tap hands-free / Esc cancel. Hotkeys are key
   names (`rctrl`, `ctrl`+`shift`+`vk_20`); combo trigger keys are swallowed, Win/Alt combos get
   a dummy key so Start/menus don't open. Also records a new hotkey for Settings. Injected keys
@@ -40,7 +48,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   log dictated text or keystrokes.
 - `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,
   no build step); `Bridge` is exposed over QWebChannel as `murmur`. `app.js` falls back to sample
-  data outside Qt, so `ui/web` can be previewed with `python -m http.server`.
+  data outside Qt, so `ui/web` can be previewed with `python -m http.server` (`?setup` shows the
+  first-run checklist); extend `sampleBridge()` with every new slot. History entries from the
+  try-it box (app "Murmur") aren't saved.
 - Design: dark zinc neutrals, one accent (#e07a50, burnt orange), Geist + Geist Mono (bundled),
   Phosphor icons (generated `icons.js`), no gradients/glows, no purple. Logo is an M made of five
   waveform bars, middle bar in the accent; drawn in both `style.logo_image` and `app.js` LOGO.

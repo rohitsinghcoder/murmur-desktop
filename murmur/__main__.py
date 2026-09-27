@@ -226,7 +226,7 @@ class App(QObject):
     def on_done(self, text: str, audio_ms: int, latency_ms: int):
         self.pill.rest()
         self.last_latency_ms = latency_ms
-        if text.strip():
+        if text.strip() or "\n" in text:  # just "\n" is "new line" said on its own
             read, self._caret_read = self._caret_read, (None, 0.0)
             how = self._insert(text, *read)
             # Lengths and timings only: never what was said.

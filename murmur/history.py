@@ -33,7 +33,7 @@ def _migrate():
 
 
 def add(text: str, audio_ms: int, app: str | None):
-    if app == TRY_IT or keep == "off":
+    if app == TRY_IT or keep == "off" or not text.strip():
         return
     _migrate()
     DIR.mkdir(parents=True, exist_ok=True)
