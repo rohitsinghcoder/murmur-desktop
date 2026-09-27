@@ -17,7 +17,7 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, logfile, pipeline, settings, spacing
+from . import dictation, engine, history, hotkey, inserter, logfile, pipeline, settings, sounds, spacing
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -81,6 +81,7 @@ class App(QObject):
         self.pill.cancel_clicked.connect(self.on_click_cancel)
         self.pill.stop_clicked.connect(self.on_click_stop)
         self.pill.show()
+        self.sounds = sounds.Sounds()
         self.apply_settings()
 
         # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
@@ -183,6 +184,7 @@ class App(QObject):
             return False
         self.target_app = inserter.foreground_app()
         self.pill.recording(hands_free)
+        self.sounds.start()
         return True
 
     def on_start(self):
@@ -204,6 +206,7 @@ class App(QObject):
             self.pill.processing()
             # Asks the app what's before the caret while the transcription is finished.
             self._caret_read = (self.caret.start(), time.monotonic())
+            self.sounds.stop()
 
     def on_cancel(self):
         if self.dictation:
@@ -290,6 +293,7 @@ class App(QObject):
         history.keep = self.settings["keep_history"]
         history.prune()
         self.history_changed.emit()
+        self.sounds.set_enabled(self.settings["sounds"])
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting

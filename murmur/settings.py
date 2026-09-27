@@ -12,6 +12,7 @@ DEFAULTS = {
     "remove_fillers": True,
     "digits": True,
     "voice_commands": True,  # "new line", "new paragraph" (murmur/commands.py)
+    "sounds": False,  # a soft sound when dictation starts and stops
     "keep_history": "forever",  # forever, year, month or off (history.KEEP)
     "dictionary": [],  # [heard, write] pairs (murmur/replace.py)
     "snippets": [],  # [trigger, text] pairs (murmur/replace.py)
@@ -29,6 +30,7 @@ OPTIONS = {
     "remove_fillers": lambda v: isinstance(v, bool),
     "digits": lambda v: isinstance(v, bool),
     "voice_commands": lambda v: isinstance(v, bool),
+    "sounds": lambda v: isinstance(v, bool),
     "keep_history": lambda v: isinstance(v, str) and v in history.KEEP,
     "dictionary": _pairs,
     "snippets": _pairs,
