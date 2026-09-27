@@ -60,6 +60,10 @@
   --toast-bg: #222226;
   --toast-text: #ededee;
   --toast-line: rgba(255, 255, 255, 0.12);
+  --toast-icon: #5bc98a;
+  --toast-dim: #8e8e95;
+  --toast-accent: #e98a62;
+  --toast-hover: rgba(255, 255, 255, 0.08);
   --pill-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14);
   --scroll: rgba(255, 255, 255, 0.08);
   --scroll-hover: rgba(255, 255, 255, 0.16);
@@ -112,6 +116,10 @@
   --toast-bg: #1c1c1f;
   --toast-text: #f4f4f5;
   --toast-line: transparent;
+  --toast-icon: #5bc98a;
+  --toast-dim: #a1a1a8;
+  --toast-accent: #f0936b;
+  --toast-hover: rgba(255, 255, 255, 0.1);
   --pill-shadow: 0 4px 14px rgba(0, 0, 0, 0.18), 0 1px 3px rgba(0, 0, 0, 0.12);
   --scroll: rgba(24, 24, 27, 0.14);
   --scroll-hover: rgba(24, 24, 27, 0.26);
@@ -377,8 +385,16 @@ h2 { margin: 0; font-weight: 600; font-size: 17px; line-height: 1.3; letter-spac
   transform: translate(-50%, 12px); opacity: 0; pointer-events: none;
   transition: transform 0.35s var(--ease), opacity 0.2s;
 }
-.toast svg { color: #5bc98a; }
+.toast svg { color: var(--toast-icon); }
+.toast.neutral svg { color: var(--toast-dim); }
 .toast.show { transform: translate(-50%, 0); opacity: 1; }
+.toast.show.has-action { pointer-events: auto; padding-right: 6px; }
+.toast-action {
+  margin-left: 6px; height: 26px; padding: 0 10px; border: 0; border-radius: 6px;
+  background: transparent; color: var(--toast-accent); font-weight: 600; font-size: 13px; cursor: pointer;
+  transition: background 0.15s;
+}
+.toast-action:hover { background: var(--toast-hover); }
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 12px; }

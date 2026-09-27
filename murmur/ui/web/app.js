@@ -53,12 +53,25 @@ function keycaps(labels) {
   return `<span class="keys">${labels.map((l) => `<kbd class="key">${esc(l)}</kbd>`).join('<span class="plus">+</span>')}</span>`;
 }
 
-function toast(text) {
+// A short note at the bottom. With `action`, it has a button (like Undo) and stays a little longer.
+function toast(text, { icon = "check", action = null, onAction = null, ms = action ? 4000 : 1600 } = {}) {
   const t = $("[data-toast]");
+  $("[data-toast-icon]").innerHTML = svg(icon, SIZES.toast);
   $("[data-toast-text]").textContent = text;
+  const button = $("[data-toast-action]");
+  button.hidden = !action;
+  button.textContent = action || "";
+  button.onclick = () => { hideToast(); onAction(); };
+  t.classList.toggle("neutral", icon !== "check");
+  t.classList.toggle("has-action", !!action);
   t.classList.add("show");
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => t.classList.remove("show"), 1600);
+  toast.timer = setTimeout(hideToast, ms);
+}
+
+function hideToast() {
+  clearTimeout(toast.timer);
+  $("[data-toast]").classList.remove("show", "has-action");
 }
 
 function greeting() {
@@ -172,7 +185,7 @@ const MAX_SHOWN = 300;
 function renderHistory() {
   const box = $("[data-history]");
   const query = $("[data-search]").value.trim().toLowerCase();
-  const shown = query ? entries.filter((e) => e.text.toLowerCase().includes(query)) : entries;
+  const shown = entries.filter((e) => e.time !== pending?.entry.time && (!query || e.text.toLowerCase().includes(query)));
   box.replaceChildren();
 
   if (!shown.length) {
@@ -238,12 +251,7 @@ function entryRow(e, when, i) {
     clearTimeout(row.copiedTimer);
     row.copiedTimer = setTimeout(() => { copyBtn.classList.remove("done"); copyBtn.innerHTML = svg("copy", 16); }, 1400);
   };
-  const remove = () => {
-    row.classList.add("removing");
-    setTimeout(() => { entries = entries.filter((x) => x.time !== e.time); bridge.deleteEntry(e.time); }, 250);
-    toast("Deleted");
-  };
-  const del = { label: "Delete", icon: "trash", danger: true, action: remove };
+  const del = { label: "Delete", icon: "trash", danger: true, action: () => removeEntry(e, row) };
 
   row.addEventListener("click", (ev) => {
     if (ev.target.closest('[data-act="more"]')) return;
@@ -265,6 +273,54 @@ function entryRow(e, when, i) {
     }
   });
   return row;
+}
+
+// Deleting waits until the toast has gone, so its Undo can put the row back. Deleting another
+// entry first finishes the one waiting.
+let pending = null; // { entry, row, timer }
+
+function removeEntry(e, row) {
+  commitDelete();
+  pending = { entry: e, row, timer: setTimeout(commitDelete, 4000) };
+  row.classList.add("removing");
+  setTimeout(() => {
+    if (pending?.row !== row) return;
+    // Close the gap it leaves, then hide it (and its day, if it was the day's last).
+    row.animate([{ height: `${row.offsetHeight}px` }, { height: "0px", paddingTop: "0px", paddingBottom: "0px" }],
+      { duration: 200, easing: "ease-out" }).onfinish = () => {
+      if (pending?.row !== row) return;
+      row.hidden = true;
+      syncDay(row);
+    };
+  }, 200);
+  toast("Deleted", { icon: "trash", action: "Undo", onAction: undoDelete });
+}
+
+function commitDelete() {
+  if (!pending) return;
+  const { entry } = pending;
+  clearTimeout(pending.timer);
+  pending = null;
+  entries = entries.filter((x) => x.time !== entry.time);
+  bridge.deleteEntry(entry.time);
+}
+
+function undoDelete() {
+  if (!pending) return;
+  const { row } = pending;
+  clearTimeout(pending.timer);
+  pending = null;
+  hideToast();
+  if (!row.isConnected) { renderHistory(); return; } // the list was redrawn meanwhile
+  row.getAnimations().forEach((a) => a.cancel());
+  row.hidden = false;
+  syncDay(row);
+  row.classList.remove("removing");
+}
+
+function syncDay(row) {
+  const group = row.parentElement;
+  group.previousElementSibling.hidden = [...group.children].every((r) => r.hidden);
 }
 
 // A small menu at a point (or, with alignRight, ending at it).
@@ -349,6 +405,10 @@ function wire() {
       e.preventDefault();
       showPage("home");
       $("[data-search]").focus();
+    }
+    if (e.ctrlKey && e.key.toLowerCase() === "z" && pending && !e.target.closest("input, textarea")) {
+      e.preventDefault();
+      undoDelete();
     }
   });
   $("[data-change]").onclick = () => { showError(""); setRecording(true); bridge.recordHotkey(); };
