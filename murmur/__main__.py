@@ -397,6 +397,7 @@ class App(QObject):
         self.keys.stop()
         if self.dictation:
             self.dictation.cancel()
+            self.dictation.close()
         self.tray.hide()
         self.qt.quit()
 

@@ -1,4 +1,5 @@
 import threading
+import time
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -141,30 +142,39 @@ def fake_decode(audio):
 
 
 class FakeMic:
-    """Stands in for sd.InputStream: plays `audio` into the callback as fast as it's taken."""
+    """Stands in for sd.InputStream: plays `audio` into the callback as fast as it's taken, and
+    more with play()."""
 
     def __init__(self, audio):
         self.audio = audio
         self.played = threading.Event()
-        self.stopped = False
+        self.active = False
+        self.opened = 0
 
     def __call__(self, samplerate, channels, dtype, blocksize, device, callback):
+        self.opened += 1
         self.blocksize, self.callback = blocksize, callback
         return self
 
     def start(self):
-        def play():
-            for i in range(0, len(self.audio), self.blocksize):
-                if self.stopped:
+        self.active = True
+        self.play(self.audio)
+
+    def play(self, audio):
+        self.played.clear()
+
+        def run():
+            for i in range(0, len(audio), self.blocksize):
+                if not self.active:
                     break
-                block = self.audio[i:i + self.blocksize]
+                block = audio[i:i + self.blocksize]
                 self.callback(block.reshape(-1, 1), len(block), None, None)
             self.played.set()
 
-        threading.Thread(target=play, daemon=True).start()
+        threading.Thread(target=run, daemon=True).start()
 
     def stop(self):
-        self.stopped = True
+        self.active = False
 
     def close(self):
         pass
@@ -193,6 +203,7 @@ def mic(monkeypatch):
         return fake
 
     yield d, results, play
+    d.close()
     d.executor.shutdown()
 
 
@@ -242,6 +253,45 @@ def test_hands_free_keeps_listening_while_there_is_speech(mic):
     assert not d.ended.wait(0.3) and not stopped.is_set()
     d.finish()
     assert d.ended.wait(5) and "done" in results
+
+
+def dictate(d, results, fake, audio=None):
+    """One dictation: plays `audio` (or what the fake mic starts with), stops, waits for the end."""
+    d.ended.clear()
+    results.clear()
+    d.listen()
+    if audio is not None:
+        deadline = time.monotonic() + 5
+        while d._chunks is None and time.monotonic() < deadline:  # until it takes audio
+            time.sleep(0.001)
+        fake.play(audio)
+    assert fake.played.wait(5)
+    d.finish()
+    assert d.ended.wait(5)
+
+
+def test_back_to_back_dictations_reuse_the_open_mic_and_ignore_audio_between(mic):
+    d, results, play = mic
+    fake = play(speech(1))
+    dictate(d, results, fake)
+    assert results["done"][1] == 1000
+    fake.play(speech(3))  # said between dictations: dropped
+    assert fake.played.wait(5)
+    dictate(d, results, fake, speech(2))
+    assert fake.opened == 1 and fake.active
+    assert results["done"][1] == 2000
+
+
+def test_mic_closes_after_the_grace_period(mic, monkeypatch):
+    monkeypatch.setattr(dictation, "MIC_KEEP_OPEN_S", 0.1)
+    d, results, play = mic
+    fake = play(speech(1))
+    dictate(d, results, fake)
+    time.sleep(0.3)
+    assert not fake.active and d._stream is None
+    fake = play(speech(1))
+    dictate(d, results, fake)  # opens a new one
+    assert fake.opened == 1 and "done" in results
 
 
 def test_holding_the_hotkey_never_finishes_by_itself(mic):

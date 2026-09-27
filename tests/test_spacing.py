@@ -88,7 +88,7 @@ def test_reads_classic_edit_controls(edit):
 
 def test_slow_app_times_out_instead_of_holding_up_the_text():
     with ThreadPoolExecutor(1) as ex:
-        read = ex.submit(time.sleep, 0.5)
+        read = ex.submit(time.sleep, spacing.READ_TIMEOUT_S + 0.15)
         t0 = time.monotonic()
         assert spacing.CaretReader.result(read, t0) is None
         assert time.monotonic() - t0 < spacing.READ_TIMEOUT_S + 0.1

@@ -48,6 +48,11 @@ LOOKAHEAD_S = 1.5
 SILENT_DB = -80.0
 # Judged only on dictations at least this long; a stream can start with a few empty blocks.
 SILENT_MIN_S = 1.0
+# Opening the mic takes 40-75 ms, and this laptop's mic then fades in over about 300 ms, which
+# clips a first word said right away. So the stream stays open this long after a dictation and
+# the next one starts at full level (and the stop no longer waits ~65 ms for it to close). Not
+# for ever: Windows shows the mic as in use while it's open. Audio between dictations is dropped.
+MIC_KEEP_OPEN_S = 10.0
 # Hands-free dictation finishes by itself (delivering the text) after this long without speech,
 # so a forgotten one doesn't keep the mic open for ever. Long enough to stop and think.
 HANDS_FREE_IDLE_S = 60.0
@@ -172,6 +177,12 @@ class Dictation:
         self._recording = False
         self._cancelled = False
         self._busy = threading.Lock()
+        # The mic stream, kept open for a moment between dictations (see MIC_KEEP_OPEN_S).
+        self._stream: sd.InputStream | None = None
+        self._chunks: queue.Queue | None = None  # where audio goes while dictating
+        self._levels: deque[float] = deque(maxlen=36)
+        self._close_timer: threading.Timer | None = None
+        self._mic_lock = threading.Lock()
 
     @property
     def busy(self) -> bool:
@@ -210,23 +221,72 @@ class Dictation:
             self._recording = False
             self._busy.release()
 
+    def _callback(self, indata, frames, time_info, status):
+        chunks = self._chunks
+        if chunks is None:
+            return  # between dictations, while the stream is kept open: dropped unheard
+        chunk = indata[:, 0].copy()
+        chunks.put(chunk)
+        self._levels.append(level(chunk))
+        self.on_levels(list(self._levels))
+
+    def _open_mic(self) -> queue.Queue:
+        """Starts taking audio, from the stream still open after the last dictation if there is one."""
+        with self._mic_lock:
+            if self._close_timer:
+                self._close_timer.cancel()
+                self._close_timer = None
+            self._levels = deque(maxlen=36)
+            self._chunks = queue.Queue()
+            if self._stream is not None and not self._stream.active:
+                self._close_stream()  # stopped by itself, e.g. the device was unplugged
+            if self._stream is None:
+                try:
+                    self._stream = sd.InputStream(
+                        samplerate=SR, channels=1, dtype="float32",
+                        blocksize=BLOCK, device=self.device, callback=self._callback,
+                    )
+                    self._stream.start()
+                except Exception:
+                    self._chunks = None
+                    self._close_stream()
+                    raise
+            return self._chunks
+
+    def _release_mic(self):
+        """Stops taking audio, and closes the stream once nobody dictates for MIC_KEEP_OPEN_S."""
+        with self._mic_lock:
+            self._chunks = None
+            self._close_timer = threading.Timer(MIC_KEEP_OPEN_S, self._close_idle)
+            self._close_timer.daemon = True
+            self._close_timer.start()
+
+    def _close_idle(self):
+        with self._mic_lock:
+            if self._chunks is None:
+                self._close_stream()
+
+    def close(self):
+        """Closes the mic now, rather than after the grace period (on quit)."""
+        with self._mic_lock:
+            if self._close_timer:
+                self._close_timer.cancel()
+            self._chunks = None
+            self._close_stream()
+
+    def _close_stream(self):
+        stream, self._stream = self._stream, None
+        if stream is not None:
+            try:
+                stream.stop()
+                stream.close()
+            except Exception:
+                log.warning("Couldn't close the microphone", exc_info=True)
+
     def _session(self):
         session = Session(lambda audio: engine.tokens(self.rec, audio), self.executor)
-        chunks: queue.Queue[np.ndarray] = queue.Queue()
-        levels: deque[float] = deque(maxlen=36)
-
-        def callback(indata, frames, time_info, status):
-            chunk = indata[:, 0].copy()
-            chunks.put(chunk)
-            levels.append(level(chunk))
-            self.on_levels(list(levels))
-
         try:
-            stream = sd.InputStream(
-                samplerate=SR, channels=1, dtype="float32",
-                blocksize=BLOCK, device=self.device, callback=callback,
-            )
-            stream.start()
+            chunks = self._open_mic()
         except Exception as e:
             log.exception("Couldn't open the microphone")
             self.on_error(f"The microphone is busy or unavailable: {e}")
@@ -246,8 +306,7 @@ class Dictation:
                 stop_at = time.monotonic() + TAIL_S
             if self._cancelled or (stop_at is not None and time.monotonic() >= stop_at):
                 break
-        stream.stop()
-        stream.close()
+        self._release_mic()
         if self._cancelled:
             return
         while not chunks.empty():
