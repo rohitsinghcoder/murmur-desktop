@@ -180,7 +180,10 @@ function duration(ms) {
   return s < 60 ? `${s}s` : `${Math.floor(s / 60)}m ${s % 60}s`;
 }
 
-const MAX_SHOWN = 300;
+// History is drawn a page at a time; "Show more" adds the next page below.
+const PAGE = 100;
+let limit = PAGE;
+let list = { shown: [], rendered: 0, re: null, lastDay: null, group: null };
 
 function renderHistory() {
   const box = $("[data-history]");
@@ -188,6 +191,7 @@ function renderHistory() {
   const re = query ? new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi") : null;
   const shown = entries.filter((e) => e.time !== pending?.entry.time && (!re || e.text.search(re) >= 0));
   box.replaceChildren();
+  list = { shown, rendered: 0, re, lastDay: null, group: null };
 
   if (!shown.length) {
     const empty = document.createElement("div");
@@ -201,25 +205,43 @@ function renderHistory() {
     return;
   }
 
-  let group = null, lastDay = null;
-  shown.slice(0, MAX_SHOWN).forEach((e, i) => {
+  appendRows(limit);
+}
+
+// Draws rows up to `upTo`, carrying on the day groups where the last page stopped.
+function appendRows(upTo) {
+  const box = $("[data-history]");
+  $(".more", box)?.remove();
+  const page = list.shown.slice(list.rendered, upTo);
+  page.forEach((e, i) => {
     const when = new Date(e.time);
     const day = when.toDateString();
-    if (day !== lastDay) {
-      lastDay = day;
+    if (day !== list.lastDay) {
+      list.lastDay = day;
       const label = document.createElement("div");
       label.className = "day";
       label.textContent = dayLabel(when);
-      group = document.createElement("div");
-      group.className = "entries";
-      box.append(label, group);
+      list.group = document.createElement("div");
+      list.group.className = "entries";
+      box.append(label, list.group);
     }
-    group.append(entryRow(e, when, i, re));
+    list.group.append(entryRow(e, when, i, list.re));
   });
-  if (shown.length > MAX_SHOWN) {
+  list.rendered += page.length;
+
+  const left = list.shown.length - list.rendered;
+  if (left > 0) {
     const more = document.createElement("div");
     more.className = "more";
-    more.textContent = `Showing the latest ${MAX_SHOWN}. Search to find older dictations.`;
+    more.innerHTML = `<button class="btn">Show more</button><span></span>`;
+    $("span", more).textContent = `${left.toLocaleString()} older ${left === 1 ? "dictation" : "dictations"}`;
+    $("button", more).onclick = (ev) => {
+      const next = list.rendered;
+      limit = next + PAGE;
+      appendRows(limit);
+      // From the keyboard, carry on at the first new row.
+      if (ev.detail === 0) $$(".entry", box)[next]?.focus();
+    };
     box.append(more);
   }
 }
@@ -408,9 +430,10 @@ function showPage(name) {
 function wire() {
   $$("[data-nav]").forEach((b) => (b.onclick = () => showPage(b.dataset.nav)));
   let debounce;
-  $("[data-search]").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(renderHistory, 120); });
+  const search = () => { limit = PAGE; renderHistory(); };
+  $("[data-search]").addEventListener("input", () => { clearTimeout(debounce); debounce = setTimeout(search, 120); });
   $("[data-search]").addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { e.target.value = ""; renderHistory(); e.target.blur(); }
+    if (e.key === "Escape") { e.target.value = ""; search(); e.target.blur(); }
   });
   document.addEventListener("keydown", (e) => {
     if (e.ctrlKey && e.key.toLowerCase() === "f") {
