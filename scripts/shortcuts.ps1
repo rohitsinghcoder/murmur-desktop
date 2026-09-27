@@ -12,21 +12,22 @@ if ($Remove) {
     exit 0
 }
 
-function New-Link($path) {
+function New-Link($path, $arguments) {
     $shell = New-Object -ComObject WScript.Shell
     $link = $shell.CreateShortcut($path)
     # pythonw runs without a console window.
     $link.TargetPath = $Python
-    $link.Arguments = "-m murmur"
+    $link.Arguments = $arguments
     $link.WorkingDirectory = $root
     $link.Description = "Murmur: private voice typing. Hold Right Ctrl to dictate."
     $link.Save()
 }
 
-New-Link $startMenu
+New-Link $startMenu "-m murmur"
 Write-Host " Added Murmur to the Start menu."
 if ($Startup -eq 1) {
-    New-Link $startupLink
+    # At login, start quietly in the tray instead of opening the window.
+    New-Link $startupLink "-m murmur --background"
     Write-Host " Murmur will start when Windows starts."
 } else {
     Remove-Item $startupLink -ErrorAction SilentlyContinue

@@ -165,6 +165,11 @@ def _wait_readable(timeout=0.5) -> bool:
     return False
 
 
+def tap(vk: int):
+    """Presses and releases one key."""
+    _send([_key(vk), _key(vk, flags=KEYEVENTF_KEYUP)])
+
+
 def type_keys(text: str):
     """Types text as Unicode keystrokes (no clipboard)."""
     units = text.encode("utf-16-le")

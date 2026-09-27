@@ -88,11 +88,23 @@ open, which shows any errors.
 |---|---|
 | Hold Right Ctrl, speak, release | Text is pasted into the focused app |
 | Double-tap Right Ctrl | Hands-free: keep talking without holding; tap once more to finish |
+| Click the little bar at the bottom of the screen | Hands-free too; click ■ to finish or ✕ to cancel |
 | Esc while listening | Cancel, nothing is typed |
 | Right Ctrl + another key | Works as a normal shortcut; dictation is cancelled |
 
-Right-click the tray icon to open your history or quit. History is stored in
-`%USERPROFILE%\.murmur\history.jsonl`.
+The bar at the bottom of the screen shows what Murmur is doing: it grows into a black pill with
+bars that move with your voice, shimmers while it finishes, and shrinks back when your text is in.
+
+Open the Murmur window from the Start menu or by clicking the tray icon:
+
+- **Home:** your stats (words, words per minute, streak), a box to try dictation, and your history
+  grouped by day. Hover an entry to copy or delete it; search to find older ones.
+- **Settings:** change the push-to-talk shortcut to any key or combo, like Right Alt, F9 or
+  Ctrl + Shift + Space.
+- **About:** the speech model, a speed test, and where your data is kept.
+
+Closing the window keeps Murmur running in the tray. Quit from the tray icon's menu. History
+and settings are stored only on your PC, in `%USERPROFILE%\.murmur`.
 
 ## Other tools
 
@@ -135,11 +147,12 @@ Everything is in `murmur/`:
 |---|---|
 | `engine.py` | Loads the speech model once; `Transcriber` streams audio in and text out |
 | `dictation.py` | Records from the mic and transcribes while you speak |
-| `hotkey.py` | Global Right Ctrl hold-to-talk via a low-level keyboard hook |
+| `hotkey.py` | Global hold-to-talk hotkey (any key or combo) via a low-level keyboard hook |
 | `inserter.py` | Pastes into the focused app and restores the clipboard |
-| `overlay.py` | The listening pill |
+| `pill.py` | The floating bar: resting, recording, hands-free and processing states |
+| `ui/` | The window: `home.py`, `settings_page.py`, `about.py`, shared `widgets.py` and `style.py` |
 | `cleanup.py`, `numbers.py` | Filler-word removal and number formatting (ports of the Android app's) |
-| `history.py` | Dictation history |
+| `history.py`, `settings.py` | Dictation history and settings, in `~/.murmur` |
 | `__main__.py` | Tray app that wires it all together |
 
 `setup.bat`, `uninstall.bat` and `scripts/` handle installing, the model download and the

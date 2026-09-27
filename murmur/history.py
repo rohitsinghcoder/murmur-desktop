@@ -31,6 +31,31 @@ def add(text: str, audio_ms: int, app: str | None):
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
 
 
+def delete(entry_time: int):
+    """Removes the entry with this timestamp."""
+    entries = [e for e in load() if e.get("time") != entry_time][::-1]
+    tmp = FILE.with_suffix(".tmp")
+    tmp.write_text("".join(json.dumps(e, ensure_ascii=False) + "\n" for e in entries), encoding="utf-8")
+    tmp.replace(FILE)
+
+
+def stats(entries: list[dict]) -> dict:
+    """Words dictated, speaking speed (words per minute) and the current daily streak."""
+    words = sum(len(e.get("text", "").split()) for e in entries)
+    minutes = sum(e.get("audioMs", 0) for e in entries) / 60000
+    days = {time.localtime(e["time"] / 1000)[:3] for e in entries if "time" in e}
+    streak = 0
+    day = time.time()
+    # A streak still counts if today's first dictation hasn't happened yet.
+    if time.localtime(day)[:3] not in days:
+        day -= 86400
+    while time.localtime(day)[:3] in days:
+        streak += 1
+        day -= 86400
+    return {"words": words, "wpm": round(words / minutes) if minutes > 0.1 else 0,
+            "dictations": len(entries), "streak": streak}
+
+
 def load() -> list[dict]:
     """Newest first."""
     _migrate()
