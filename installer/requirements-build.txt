@@ -1,0 +1,4 @@
+# What scripts/build_installer.py installs into build-venv: the app's packages plus PyInstaller.
+-r ../requirements.txt
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.7
