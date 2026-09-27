@@ -184,8 +184,9 @@ const MAX_SHOWN = 300;
 
 function renderHistory() {
   const box = $("[data-history]");
-  const query = $("[data-search]").value.trim().toLowerCase();
-  const shown = entries.filter((e) => e.time !== pending?.entry.time && (!query || e.text.toLowerCase().includes(query)));
+  const query = $("[data-search]").value.trim();
+  const re = query ? new RegExp(query.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi") : null;
+  const shown = entries.filter((e) => e.time !== pending?.entry.time && (!re || e.text.search(re) >= 0));
   box.replaceChildren();
 
   if (!shown.length) {
@@ -213,7 +214,7 @@ function renderHistory() {
       group.className = "entries";
       box.append(label, group);
     }
-    group.append(entryRow(e, when, i));
+    group.append(entryRow(e, when, i, re));
   });
   if (shown.length > MAX_SHOWN) {
     const more = document.createElement("div");
@@ -223,9 +224,20 @@ function renderHistory() {
   }
 }
 
+// Text with what the search matched in <mark>s. Every piece is escaped.
+function marked(text, re) {
+  if (!re) return esc(text);
+  let out = "", at = 0;
+  for (const m of text.matchAll(re)) {
+    out += `${esc(text.slice(at, m.index))}<mark>${esc(m[0])}</mark>`;
+    at = m.index + m[0].length;
+  }
+  return out + esc(text.slice(at));
+}
+
 // A row: click anywhere (or the copy icon) to copy. Delete is behind the "More" icon or a
 // right-click, so it always takes two steps and can't be hit instead of copy.
-function entryRow(e, when, i) {
+function entryRow(e, when, i, re) {
   const row = document.createElement("div");
   row.className = "entry";
   row.tabIndex = 0;
@@ -238,7 +250,7 @@ function entryRow(e, when, i) {
       <button class="icon-btn" data-act="more" title="More" tabindex="-1">${svg("more", 18)}</button>
     </div>`;
   $(".entry-time", row).textContent = when.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
-  $(".entry-text", row).textContent = e.text;
+  $(".entry-text", row).innerHTML = marked(e.text, re);
   const meta = [appName(e.app), e.audioMs ? duration(e.audioMs) : ""].filter(Boolean);
   $(".entry-meta", row).textContent = meta.join(" · ");
 
