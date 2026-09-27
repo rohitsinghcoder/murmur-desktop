@@ -31,6 +31,12 @@ def test_dictionary_after_cleanup():
     assert pipeline.process("Um, ask rohit about sherpa onnx.", s) == "Ask Rohit about sherpa-onnx."
 
 
+def test_snippets_are_typed_as_written():
+    s = {**DEFAULTS, "dictionary": [["rohit", "Rohit"]], "snippets": [["sign off", "cheers,\nrohit 2"]]}
+    assert pipeline.process("Sign off.", s) == "cheers,\nrohit 2"
+    assert pipeline.process("Thanks all. Sign off.", s) == "Thanks all. cheers,\nrohit 2."
+
+
 def test_settings_validation():
     assert settings.valid("dictionary", [["a b", "c"]])
     assert not settings.valid("dictionary", [["a b", ""]])

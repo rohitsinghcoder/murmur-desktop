@@ -2,7 +2,7 @@
 
 First cleanup.tidy's steps (the Android app's cleanup; cleanup.py and numbers.py stay
 line-for-line ports, and the switches only pick which of their steps run), then the user's
-dictionary.
+dictionary and snippets.
 """
 from . import cleanup, numbers, replace
 
@@ -15,4 +15,6 @@ def process(text: str, settings: dict) -> str:
     # Numbers the model already wrote as digits (3.30pm, 500 rupees) are tidied either way:
     # that's formatting, not turning words into digits.
     text = numbers.tidy_digits(text)
-    return replace.dictionary(text, settings.get("dictionary", ()))
+    text = replace.dictionary(text, settings.get("dictionary", ()))
+    # Snippets last, so what they type is exactly what the user wrote.
+    return replace.snippets(text, settings.get("snippets", ()))

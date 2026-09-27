@@ -640,6 +640,7 @@ function sampleBridge() {
   const options = {
     remove_fillers: true, digits: true, keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
+    snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };
   const resolved = () => (theme === "system" ? (light.matches ? "light" : "dark") : theme);
   light.addEventListener("change", () => stateChanged.emit());
