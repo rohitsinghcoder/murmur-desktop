@@ -161,6 +161,8 @@ class HoldToTalk:
         self._down: set[int] = set()
         self._swallowed: set[int] = set()
         self._down_at = 0.0
+        # When a key other than the hotkey was last pressed: typing may have moved the caret.
+        self.typed_at = 0.0
         self._timer: threading.Timer | None = None
         self._lock = threading.RLock()
         self._thread_id = 0
@@ -270,6 +272,8 @@ class HoldToTalk:
                         return True
                 return False
 
+            if down:
+                self.typed_at = time.monotonic()
             if not down or self._state == IDLE:
                 return False
             if vk == VK_ESCAPE:

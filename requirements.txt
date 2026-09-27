@@ -4,4 +4,5 @@ numpy
 soundfile
 PySide6-Essentials==6.11.2
 PySide6-Addons==6.11.2
+comtypes
 pytest

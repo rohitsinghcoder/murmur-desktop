@@ -71,6 +71,17 @@ def test_escape_cancels_and_is_swallowed(keys):
     assert keys.events == ["start", "cancel"]
 
 
+def test_typing_is_noticed_but_the_hotkey_is_not(keys):
+    keys._on_key(KEY_C, True)
+    keys._on_key(KEY_C, False)
+    assert keys.typed_at == 100.0
+    wait(keys, 5)
+    keys._on_key(RCTRL, True)
+    wait(keys, 1)
+    keys._on_key(RCTRL, False)
+    assert keys.typed_at == 100.0  # dictating doesn't count as typing
+
+
 def test_escape_when_idle_passes_through(keys):
     assert keys._on_key(ESC, True) is False
     assert keys.events == []

@@ -17,7 +17,7 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, logfile, settings
+from . import dictation, engine, history, hotkey, inserter, logfile, settings, spacing
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -66,6 +66,10 @@ class App(QObject):
         self.target_app: str | None = None
         self.testing_speed = False
         self._told_about_tray = False
+        # For a space between dictations: what's before the caret, or else where the last one went.
+        self.caret = spacing.CaretReader()
+        self._caret_read = (None, 0.0)  # (read in progress, when it started)
+        self.last_insert = spacing.LastInsert()
 
         self.pill = Pill()
         self.pill.start_clicked.connect(self.on_click_start)
@@ -178,6 +182,8 @@ class App(QObject):
         if self.dictation and self.dictation.busy:
             self.dictation.finish()
             self.pill.processing()
+            # Asks the app what's before the caret while the transcription is finished.
+            self._caret_read = (self.caret.start(), time.monotonic())
 
     def on_cancel(self):
         if self.dictation:
@@ -197,10 +203,17 @@ class App(QObject):
         self.pill.rest()
         self.last_latency_ms = latency_ms
         if text.strip():
-            how = inserter.paste(text)
+            window = inserter.focus_window()
+            read, self._caret_read = self._caret_read, (None, 0.0)
+            before = self.caret.result(*read)
+            follows = self.last_insert.follows(window, self.keys.typed_at, time.monotonic())
+            space = spacing.needs_space(text, before, follows)
+            how = inserter.paste(text, space_before=space)
+            if how != "copy":
+                self.last_insert.record(window, time.monotonic())
             # Lengths and timings only: never what was said.
-            log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
-                     len(text), audio_ms, latency_ms, self.target_app, how)
+            log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s%s",
+                     len(text), audio_ms, latency_ms, self.target_app, how, ", after a space" if space else "")
             if how == "copy":
                 self.pill.show_message("Can't type into apps run as administrator. Copied instead.",
                                        ms=5000)

@@ -86,6 +86,17 @@ class INPUT(ctypes.Structure):
 user32.SendInput.argtypes = [wintypes.UINT, ctypes.POINTER(INPUT), ctypes.c_int]
 user32.SendInput.restype = wintypes.UINT
 
+
+class GUITHREADINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("flags", wintypes.DWORD), ("hwndActive", wintypes.HWND),
+                ("hwndFocus", wintypes.HWND), ("hwndCapture", wintypes.HWND),
+                ("hwndMenuOwner", wintypes.HWND), ("hwndMoveSize", wintypes.HWND),
+                ("hwndCaret", wintypes.HWND), ("rcCaret", wintypes.RECT)]
+
+
+user32.GetGUIThreadInfo.argtypes = [wintypes.DWORD, ctypes.POINTER(GUITHREADINFO)]
+user32.GetGUIThreadInfo.restype = wintypes.BOOL
+
 # Keeps our temporary clipboard text out of Win+V clipboard history.
 _EXCLUDE_FROM_HISTORY = [
     user32.RegisterClipboardFormatW("ExcludeClipboardContentFromMonitorProcessing"),
@@ -200,13 +211,15 @@ def type_keys(text: str):
     _send(inputs)
 
 
-def paste(text: str) -> str:
+def paste(text: str, space_before=False) -> str:
     """Puts text into the focused app. Returns how: "paste" or "type", or "copy" when the app
     runs as administrator: Windows drops our keystrokes there, so the text is left on the
     clipboard for the user to paste instead."""
     if foreground_elevated():
         copy(text)
         return "copy"
+    if space_before:
+        text = " " + text
     restorable, previous = _read_clipboard()
     if not restorable or not _write_clipboard(text):
         type_keys(text)
@@ -226,14 +239,29 @@ def paste(text: str) -> str:
     return "paste"
 
 
+def foreground_pid() -> int:
+    pid = wintypes.DWORD()
+    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
+    return pid.value
+
+
+def focus_window() -> tuple[int, int] | None:
+    """(foreground window, its focused control): where typed text goes, as far as Windows knows."""
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd:
+        return None
+    tid = user32.GetWindowThreadProcessId(hwnd, None)
+    info = GUITHREADINFO(cbSize=ctypes.sizeof(GUITHREADINFO))
+    focus = info.hwndFocus if user32.GetGUIThreadInfo(tid, ctypes.byref(info)) else None
+    return hwnd, focus or 0
+
+
 def foreground_app() -> str | None:
     """File name of the focused app, like "chrome.exe"."""
-    hwnd = user32.GetForegroundWindow()
-    pid = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(hwnd, ctypes.byref(pid))
-    if pid.value == os.getpid():
+    pid = foreground_pid()
+    if pid == os.getpid():
         return "Murmur"  # the try-it box in Murmur's own window
-    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid)
     if not h:
         return None
     try:
@@ -269,9 +297,7 @@ _own_integrity = _integrity(kernel32.GetCurrentProcess())
 def foreground_elevated() -> bool:
     """Whether the focused app runs at a higher integrity level than Murmur (as administrator),
     where Windows silently drops the keystrokes we send."""
-    pid = wintypes.DWORD()
-    user32.GetWindowThreadProcessId(user32.GetForegroundWindow(), ctypes.byref(pid))
-    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, pid.value)
+    h = kernel32.OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, False, foreground_pid())
     if not h:
         return False
     try:
