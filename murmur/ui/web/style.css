@@ -335,6 +335,11 @@ h2 { margin: 0; font-weight: 600; font-size: 17px; line-height: 1.3; letter-spac
 .btn.ghost { background: transparent; border-color: transparent; box-shadow: none; color: var(--dim); }
 .btn.ghost:hover { color: var(--text); background: var(--icon-hover); }
 .btn.danger { color: var(--danger); }
+/* A button that opens a list of choices, showing the current one. */
+.btn.picker { max-width: 280px; gap: 10px; padding-right: 10px; }
+.picker-text { overflow: hidden; text-overflow: ellipsis; }
+.btn.picker svg { color: var(--faint); }
+.row-desc.warn { color: var(--danger); }
 .btn.danger:hover { background: var(--danger-soft); border-color: var(--danger); }
 .link { border: 0; background: none; color: var(--text-2); cursor: pointer; font-size: 12.5px; font-weight: 500; padding: 0; text-decoration: underline; text-decoration-color: var(--line-2); text-underline-offset: 3px; }
 .link:hover { color: var(--text); text-decoration-color: var(--text-2); }
@@ -429,6 +434,9 @@ textarea.field { height: 34px; min-height: 34px; max-height: 160px; padding: 7px
   text-align: left; cursor: pointer; outline: 0;
 }
 .menu button svg { color: var(--dim); }
+.menu-gap { width: 16px; flex: none; }
+.menu { max-width: 420px; }
+.menu button span:last-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .menu button:hover, .menu button:focus-visible { background: var(--pop-hover); }
 .menu button.danger, .menu button.danger svg { color: var(--danger); }
 .menu button.danger:hover, .menu button.danger:focus-visible { background: var(--danger-soft); }

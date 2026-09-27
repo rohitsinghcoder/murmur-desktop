@@ -17,7 +17,7 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, logfile, pipeline, settings, sounds, spacing
+from . import dictation, engine, history, hotkey, inserter, logfile, mics, pipeline, settings, sounds, spacing
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -146,6 +146,7 @@ class App(QObject):
             rec, on_levels=self.levels.emit, on_done=self.done.emit, on_error=self.error.emit,
             on_silent=self.silent.emit, on_auto_stop=self.auto_stopped.emit,
             tidy=lambda text: pipeline.process(text, self.settings),
+            device=mics.find(self.settings["microphone"]),
         )
         self.loaded.emit(time.perf_counter() - t0)
 
@@ -295,6 +296,9 @@ class App(QObject):
         self.history_changed.emit()
         self.sounds.set_enabled(self.settings["sounds"])
         self.pill.set_show_idle(self.settings["show_bar"])
+        if self.dictation:
+            # A microphone that isn't connected falls back to the default until it's back.
+            self.dictation.device = mics.find(self.settings["microphone"])
 
     def _resolve_theme(self) -> str:
         return style.system_theme() if self.theme_setting == "system" else self.theme_setting

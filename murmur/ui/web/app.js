@@ -99,6 +99,7 @@ function applyState(s) {
   $$("[data-startup]").forEach((b) => { if (!b.disabled) setSwitch(b, s.startup); });
   $$("[data-option]").forEach((b) => setSwitch(b, s.options[b.dataset.option]));
   setRadios($('[data-radios="keep_history"]'), s.options.keep_history);
+  showMic();
   $$("[data-pairs]").forEach((card) => renderPairs(card, s.options[card.dataset.pairs]));
 }
 
@@ -402,7 +403,7 @@ function openMenu(x, y, items, alignRight = false) {
   menu.replaceChildren(...items.map((item) => {
     const b = document.createElement("button");
     if (item.danger) b.className = "danger";
-    b.innerHTML = `${svg(item.icon, 16)}<span>${esc(item.label)}</span>`;
+    b.innerHTML = `${item.icon ? svg(item.icon, 16) : '<span class="menu-gap"></span>'}<span>${esc(item.label)}</span>`;
     b.onclick = () => { closeMenu(); item.action(); };
     return b;
   }));
@@ -455,6 +456,40 @@ function onSpeed(text) {
   $("[data-speed-result]").textContent = text;
   $("[data-speed-progress]").hidden = true;
   $("[data-speed]").disabled = state.status !== "ready";
+}
+
+// Settings: the microphone, remembered by name. One that isn't plugged in stays chosen (it's
+// used again when it's back), and dictation uses the default meanwhile.
+
+let mics = { default: null, devices: [] };
+
+function loadMics(then) {
+  bridge.microphones((json) => { mics = JSON.parse(json); showMic(); if (then) then(); });
+}
+
+function showMic() {
+  const chosen = state.options?.microphone || "";
+  const missing = chosen && !mics.devices.includes(chosen);
+  $("[data-mic-name]").textContent = chosen || "System default";
+  $("[data-mic]").title = chosen || mics.default || "";
+  $("[data-mic-desc]").textContent = missing
+    ? "Not connected right now, so Murmur is using the system default."
+    : chosen ? "Murmur listens to this microphone." : "System default follows your Windows sound settings.";
+  $("[data-mic-desc]").classList.toggle("warn", !!missing);
+}
+
+function pickMic() {
+  const chosen = state.options.microphone || "";
+  const pick = (name) => () => { setOption("microphone", name); showMic(); };
+  const items = [
+    { label: mics.default ? `System default (${mics.default})` : "System default", icon: chosen ? null : "check", action: pick("") },
+    ...mics.devices.map((name) => ({ label: name, icon: name === chosen ? "check" : null, action: pick(name) })),
+  ];
+  if (chosen && !mics.devices.includes(chosen)) {
+    items.push({ label: `${chosen} (not connected)`, icon: "check", action: pick(chosen) });
+  }
+  const r = $("[data-mic]").getBoundingClientRect();
+  openMenu(r.right, r.bottom + 6, items, true);
 }
 
 // Settings: start with Windows. Making the shortcut takes a moment, so the switch moves at once
@@ -534,6 +569,7 @@ function confirmClear(on, focus = true) {
 
 function showPage(name) {
   if (name !== "settings") confirmClear(false, false);
+  if (name === "settings") loadMics();
   if (recording && name !== "settings") { bridge.cancelHotkey(); setRecording(false); }
   $$("[data-nav]").forEach((b) => b.classList.toggle("active", b.dataset.nav === name));
   $$("[data-page]").forEach((p) => p.classList.toggle("active", p.dataset.page === name));
@@ -578,6 +614,7 @@ function wire() {
   wireRadios($('[data-radios="theme"]'), (theme) => bridge.setTheme(theme));
   $("[data-theme-toggle]").onclick = () => bridge.setTheme(state.resolvedTheme === "dark" ? "light" : "dark");
   $$("[data-startup]").forEach((b) => (b.onclick = () => setStartup(!isOn(b))));
+  $("[data-mic]").onclick = () => loadMics(pickMic);
   wireRadios($('[data-radios="keep_history"]'), (v) => setOption("keep_history", v));
   $$("[data-pairs]").forEach(wirePairs);
   $("[data-export]").onclick = () => bridge.exportHistory((message) => { if (message) toast(message); });
@@ -638,7 +675,7 @@ function sampleBridge() {
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false;
   const options = {
-    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, keep_history: "forever",
+    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, microphone: "", keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
     snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };
@@ -664,6 +701,10 @@ function sampleBridge() {
     setTheme(t) { theme = t; stateChanged.emit(); },
     setStartup(on) { setTimeout(() => { startup = on; startupChanged.emit(""); }, 400); },
     history: (cb) => cb(JSON.stringify({ entries: sample, stats: { words: 1842, wpm: 152, dictations: 64, streak: 2, timesFaster: 3.8, minutesSaved: 34 } })),
+    microphones: (cb) => cb(JSON.stringify({
+      default: "Microphone Array (Realtek(R) Audio)",
+      devices: ["Microphone Array (Realtek(R) Audio)", "Headset Microphone (Jabra Evolve2 65)"],
+    })),
     exportHistory: (cb) => setTimeout(() => cb(`Exported ${sample.length} dictations`), 300),
     clearHistory() { sample.length = 0; this.historyChanged.emit(); },
     copy() {}, deleteEntry() {}, recordHotkey() {}, cancelHotkey() {}, resetHotkey() {},

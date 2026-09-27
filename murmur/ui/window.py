@@ -14,7 +14,7 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
-from .. import engine, history, settings, startup
+from .. import engine, history, mics, settings, startup
 from .. import hotkey as hk
 from . import style
 
@@ -116,6 +116,21 @@ class Bridge(QObject):
     def setOption(self, key: str, value: str):
         """Changes a setting; the value comes as JSON."""
         self.app.set_option(key, json.loads(value))
+
+    @Slot(result=str)
+    def microphones(self) -> str:
+        """The microphones to choose from, looking again for ones plugged in since the last time
+        (only while nothing is recording)."""
+        a = self.app
+        if not (a.dictation and a.dictation.busy):
+            try:
+                mics.refresh()
+                if a.dictation:
+                    a.dictation.device = mics.find(a.settings["microphone"])
+            except Exception:
+                pass
+        names = [d["name"] for d in mics.inputs()]
+        return json.dumps({"default": mics.default_name(), "devices": names}, ensure_ascii=False)
 
     @Slot(bool)
     def setStartup(self, on: bool):
