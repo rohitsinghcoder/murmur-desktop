@@ -49,7 +49,7 @@ Murmur runs from where you put it.
 
 **3. Double-click `setup.bat`** in the folder. It:
 
-- creates a private Python environment for Murmur in `%LOCALAPPDATA%\Murmur` (just for your user; nothing is installed system-wide),
+- creates a private Python environment for Murmur in `%USERPROFILE%\.murmur` (just for your user; nothing is installed system-wide),
 - installs the packages and downloads the speech model (~800 MB in total),
 - adds **Murmur** to your Start menu, and asks whether to start it with Windows,
 - starts Murmur.
@@ -92,7 +92,7 @@ open, which shows any errors.
 | Right Ctrl + another key | Works as a normal shortcut; dictation is cancelled |
 
 Right-click the tray icon to open your history or quit. History is stored in
-`%APPDATA%\Murmur\history.jsonl`.
+`%USERPROFILE%\.murmur\history.jsonl`.
 
 ## Other tools
 
@@ -119,13 +119,13 @@ Right-click the tray icon to open your history or quit. History is stored in
 | The pill says the microphone is unavailable | Settings → Privacy & security → Microphone: turn on **Microphone access** and **Let desktop apps access your microphone**. |
 | Words come out wrong | Speak at a normal pace, close to the mic; built-in laptop mics in a noisy room struggle. |
 | Text doesn't appear in one particular app | Some apps block pasting. The text is still in your history (tray → Open history). |
-| `setup.bat` says packages failed | Install Python 3.12, delete `%LOCALAPPDATA%\Murmur\venv`, run `setup.bat` again. |
-| I want to see errors | Quit Murmur, then in a terminal in the Murmur folder run `%LOCALAPPDATA%\Murmur\venv\Scripts\python -m murmur`. |
+| `setup.bat` says packages failed | Install Python 3.12, delete `%USERPROFILE%\.murmur\venv`, run `setup.bat` again. |
+| I want to see errors | Quit Murmur, then in a terminal in the Murmur folder run `%USERPROFILE%\.murmur\venv\Scripts\python -m murmur`. |
 
 ## Uninstall
 
 Quit Murmur from the tray icon, double-click `uninstall.bat` (removes the shortcuts), then
-delete the Murmur folder, `%LOCALAPPDATA%\Murmur` (its Python environment) and `%APPDATA%\Murmur` (your history).
+delete the Murmur folder and `%USERPROFILE%\.murmur` (its Python environment and your history).
 
 ## Project layout
 

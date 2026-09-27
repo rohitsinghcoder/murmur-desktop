@@ -27,5 +27,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - Default hotkey is Right Ctrl because Wispr Flow owns Ctrl+Win.
 - Clipboard watchers lock the clipboard for a moment after a write that carries the
   "exclude from history" formats; `inserter._wait_readable` waits before sending Ctrl+V.
+- `setup.bat` puts its venv in `%USERPROFILE%\.murmur\venv` and history lives in `~/.murmur`:
+  PySide6 nests files 176 chars deep (MAX_PATH), and Microsoft Store Python redirects
+  AppData writes into its sandbox. The repo's own `.venv` is for development.
 - Windows PowerShell 5.1 reads files as ANSI: don't round-trip source files through
   Get-Content/Set-Content (it garbles "…" and "₹").

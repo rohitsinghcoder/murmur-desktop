@@ -134,6 +134,7 @@ class App(QObject):
         self.overlay.show_message(message, error=True, ms=5000)
 
     def open_history(self):
+        history.load()  # moves history from the old location, if any
         if history.FILE.exists():
             os.startfile(history.FILE)
         else:

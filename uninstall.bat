@@ -8,7 +8,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File scripts\shortcuts.ps1 -Remov
 echo.
 echo  To remove Murmur completely, also delete:
 echo    - this folder: %~dp0
-echo    - Murmur's Python environment: %LOCALAPPDATA%\Murmur
-echo    - your dictation history: %APPDATA%\Murmur
+echo    - Murmur's Python environment and your dictation history: %USERPROFILE%\.murmur
 echo.
 pause

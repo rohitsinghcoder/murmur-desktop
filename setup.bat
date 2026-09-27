@@ -8,8 +8,9 @@ echo  This installs what Murmur needs, about 800 MB of downloads.
 echo.
 
 rem The Python environment lives at a short path: some packages nest files so deep that
-rem inside a long folder path they'd pass Windows' 260-character limit.
-set "VENV=%LOCALAPPDATA%\Murmur\venv"
+rem inside a long folder path they'd pass Windows' 260-character limit. Not in AppData:
+rem Microsoft Store Python silently redirects AppData writes into its sandbox.
+set "VENV=%USERPROFILE%\.murmur\venv"
 
 rem --- Find Python 3.11 or newer --------------------------------------------
 set "PY="
