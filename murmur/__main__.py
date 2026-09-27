@@ -23,6 +23,8 @@ from .ui.window import MainWindow  # imports Qt WebEngine, which must happen bef
 
 INSTANCE = f"MurmurDesktop-{getpass.getuser()}"
 log = logging.getLogger("murmur.app")
+# A dictation shorter than this that heard nothing was most likely a stray press: no message.
+NOTHING_HEARD_MIN_MS = 600
 
 
 class App(QObject):
@@ -189,6 +191,8 @@ class App(QObject):
                      len(text), audio_ms, latency_ms, self.target_app, how)
             history.add(text, audio_ms, self.target_app)
             self.history_changed.emit()
+        elif audio_ms >= NOTHING_HEARD_MIN_MS:
+            self.pill.show_message("Didn't catch that", ms=1800)
         self.status_changed.emit()
 
     def on_error(self, message: str):
