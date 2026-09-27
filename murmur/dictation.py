@@ -43,6 +43,11 @@ MAX_OPEN_S = 30.0
 # Audio either side of a piece that the model hears for context, without keeping its words.
 CONTEXT_S = 2.0
 LOOKAHEAD_S = 1.5
+# A muted mic, or one blocked in Windows' privacy settings, records digital silence: exact
+# zeros, or dither far below any real mic's own noise (a quiet room is still about -52 dB).
+SILENT_DB = -80.0
+# Judged only on dictations at least this long; a stream can start with a few empty blocks.
+SILENT_MIN_S = 1.0
 
 
 def db(chunk: np.ndarray) -> float:
@@ -76,6 +81,12 @@ class Session:
         self.cut_at: int | None = None  # a pause where the next piece will end
         self.pieces: list[Future] = []  # finished pieces' text, in order
         self.guess: tuple[int, Future] | None = None  # (samples covered, text of the rest)
+        self.loudest = -math.inf  # dB of the loudest frame
+
+    @property
+    def silent(self) -> bool:
+        """The mic gave nothing but digital silence (muted or blocked), not just a quiet room."""
+        return self.samples >= SILENT_MIN_S * SR and self.loudest < SILENT_DB
 
     def _audio(self) -> np.ndarray:
         if len(self.frames) > 1:
@@ -97,7 +108,9 @@ class Session:
     def add(self, frame: np.ndarray):
         self.frames.append(frame)
         self.samples += len(frame)
-        if db(frame) > VOICE_DB:
+        loudness = db(frame)
+        self.loudest = max(self.loudest, loudness)
+        if loudness > VOICE_DB:
             self.last_voice = self.samples
             self.quiet = 0
         else:
@@ -139,12 +152,14 @@ class Dictation:
         on_levels: Callable[[list[float]], None] = lambda levels: None,
         on_done: Callable[[str, int, int], None] = lambda text, audio_ms, latency_ms: None,
         on_error: Callable[[str], None] = lambda message: None,
+        on_silent: Callable[[], None] = lambda: None,
         device=None,
     ):
         self.rec = rec
         self.on_levels = on_levels
         self.on_done = on_done
         self.on_error = on_error
+        self.on_silent = on_silent  # instead of on_done, when the mic recorded only silence
         self.device = device
         # One transcription at a time: they share the model and the CPU.
         self.executor = ThreadPoolExecutor(max_workers=1, thread_name_prefix="murmur-decode")
@@ -226,6 +241,10 @@ class Dictation:
             return
         while not chunks.empty():
             session.add(chunks.get_nowait())
+        if session.silent:
+            log.warning("The microphone recorded only silence (loudest frame %.0f dB)", session.loudest)
+            self.on_silent()
+            return
 
         t0 = time.perf_counter()
         text = cleanup.tidy(session.text())

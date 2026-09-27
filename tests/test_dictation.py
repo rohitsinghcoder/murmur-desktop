@@ -1,3 +1,4 @@
+import threading
 from concurrent.futures import ThreadPoolExecutor
 
 import numpy as np
@@ -109,3 +110,108 @@ def test_quiet_microphone_is_still_transcribed_and_never_cut_at_pauses(run):
     assert s.guess is None and not s.pieces
     s.text()
     assert calls == [pytest.approx(8.0)]
+
+
+def room(secs, db=-55.0):
+    """Mic noise in a quiet room: well below speech, well above digital silence."""
+    rng = np.random.default_rng(0)
+    return (rng.standard_normal(int(secs * SR)) * 10 ** (db / 20)).astype(np.float32)
+
+
+def test_digital_silence_is_told_apart_from_a_quiet_room(run):
+    feed, calls = run
+    assert feed(quiet(2)).silent
+    assert not Session(None, None).silent  # nothing recorded yet
+
+
+def test_quiet_room_and_short_silence_are_not_silent(run):
+    feed, calls = run
+    assert not feed(room(2)).silent
+    s = Session(None, None)
+    for _ in range(10):
+        s.add(quiet(0.05))
+    assert not s.silent  # too short to judge
+
+
+def fake_decode(audio):
+    """Like the fake model in `run` (a word wherever a tone starts), deaf to room noise."""
+    step = SR // 100
+    loud = [np.abs(audio[i:i + step]).max() > 0.05 for i in range(0, len(audio), step)]
+    return [(" w", i * step / SR) for i, on in enumerate(loud) if on and (i == 0 or not loud[i - 1])]
+
+
+class FakeMic:
+    """Stands in for sd.InputStream: plays `audio` into the callback as fast as it's taken."""
+
+    def __init__(self, audio):
+        self.audio = audio
+        self.played = threading.Event()
+        self.stopped = False
+
+    def __call__(self, samplerate, channels, dtype, blocksize, device, callback):
+        self.blocksize, self.callback = blocksize, callback
+        return self
+
+    def start(self):
+        def play():
+            for i in range(0, len(self.audio), self.blocksize):
+                if self.stopped:
+                    break
+                block = self.audio[i:i + self.blocksize]
+                self.callback(block.reshape(-1, 1), len(block), None, None)
+            self.played.set()
+
+        threading.Thread(target=play, daemon=True).start()
+
+    def stop(self):
+        self.stopped = True
+
+    def close(self):
+        pass
+
+
+@pytest.fixture
+def mic(monkeypatch):
+    """A Dictation on a fake mic and model: (dictation, results, play(audio) -> FakeMic)."""
+    monkeypatch.setattr(dictation.engine, "tokens", lambda rec, audio: fake_decode(audio))
+    results = {}
+    ended = threading.Event()
+
+    def end(kind, *args):
+        results[kind] = args
+        ended.set()
+
+    d = dictation.Dictation(
+        None, on_done=lambda *a: end("done", *a), on_error=lambda *a: end("error", *a),
+        on_silent=lambda: end("silent"),
+    )
+    d.ended = ended
+
+    def play(audio) -> FakeMic:
+        fake = FakeMic(audio)
+        monkeypatch.setattr(dictation.sd, "InputStream", fake)
+        return fake
+
+    yield d, results, play
+    d.executor.shutdown()
+
+
+def test_silent_microphone_is_reported_instead_of_transcribed(mic):
+    d, results, play = mic
+    fake = play(quiet(2))
+    d.listen()
+    assert fake.played.wait(5)
+    d.finish()
+    assert d.ended.wait(5)
+    assert list(results) == ["silent"]
+
+
+def test_quiet_room_is_transcribed_as_usual(mic):
+    d, results, play = mic
+    fake = play(np.concatenate([room(0.5), speech(1) + room(1), room(0.5)]))
+    d.listen()
+    assert fake.played.wait(5)
+    d.finish()
+    assert d.ended.wait(5)
+    text, audio_ms, _ = results["done"]
+    assert text and audio_ms == 2000

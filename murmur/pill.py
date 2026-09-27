@@ -89,6 +89,7 @@ class Pill(QWidget):
         self.hint = "Loading speech model…"
         self.message = ""
         self.message_error = False
+        self.message_action = None
         self.level = 0.0  # latest mic level, 0..1
         self.smooth_level = 0.0
         self.w, self.h = Spring(SIZES["rest"][0]), Spring(SIZES["rest"][1])
@@ -149,9 +150,11 @@ class Pill(QWidget):
         self._move_to_cursor_screen()
         self._retarget()
 
-    def show_message(self, text: str, error=False, ms=2600):
+    def show_message(self, text: str, error=False, ms=2600, on_click=None):
+        """A short message in the pill. With `on_click`, clicking it does that and dismisses it."""
         self.state = "message"
         self.message, self.message_error = text, error
+        self.message_action = on_click
         self._move_to_cursor_screen()
         self._retarget()
         self._message_timer.start(ms)
@@ -253,7 +256,7 @@ class Pill(QWidget):
         pos = event.position()
         clickable = (self.state == "rest" and not self.loading) or (
             self.state == "handsfree" and any(_near(pos, b) for b in self._buttons())
-        )
+        ) or (self.state == "message" and self.message_action is not None)
         self.setCursor(Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
 
     def mousePressEvent(self, event):
@@ -268,6 +271,10 @@ class Pill(QWidget):
                 self.cancel_clicked.emit()
             elif _near(event.position(), stop):
                 self.stop_clicked.emit()
+        elif self.state == "message" and self.message_action and self._pill_rect().contains(event.position()):
+            action = self.message_action
+            self.rest()
+            action()
 
     # Painting.
 

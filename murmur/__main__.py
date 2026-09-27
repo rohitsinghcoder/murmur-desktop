@@ -6,6 +6,7 @@
 import ctypes
 import getpass
 import logging
+import os
 import sys
 import threading
 import time
@@ -38,6 +39,7 @@ class App(QObject):
     levels = Signal(list)
     done = Signal(str, int, int)
     error = Signal(str)
+    silent = Signal()
     hotkey_recorded = Signal(object)
     speed_result = Signal(str)
     # For the window.
@@ -96,6 +98,7 @@ class App(QObject):
         self.levels.connect(self.pill.set_level)
         self.done.connect(self.on_done)
         self.error.connect(self.on_error)
+        self.silent.connect(self.on_silent)
 
         # Hook callbacks must return fast, so they only post to the UI thread.
         self.keys = hotkey.HoldToTalk(
@@ -120,6 +123,7 @@ class App(QObject):
         log.info("Speech model loaded in %.1f s", time.perf_counter() - t0)
         self.dictation = dictation.Dictation(
             rec, on_levels=self.levels.emit, on_done=self.done.emit, on_error=self.error.emit,
+            on_silent=self.silent.emit,
         )
         self.loaded.emit(time.perf_counter() - t0)
 
@@ -199,6 +203,12 @@ class App(QObject):
         log.error("%s", message)
         self.keys.reset()
         self.pill.show_message(message, error=True, ms=5000)
+
+    def on_silent(self):
+        # Usually Windows' microphone privacy setting, or a muted mic. Clicking opens the setting.
+        self.keys.reset()
+        self.pill.show_message("Microphone is silent. Check Windows microphone access.", error=True,
+                               ms=7000, on_click=lambda: os.startfile("ms-settings:privacy-microphone"))
 
     # Settings.
 
