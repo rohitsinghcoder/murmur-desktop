@@ -3,10 +3,12 @@
 - Dictionary ("sherpa onnx" -> "sherpa-onnx"): fixes names and words the model gets wrong.
   At the start of a sentence an all-lowercase replacement gets a capital, like any word there;
   one with its own capitals (iPhone, GitHub) is written exactly as given.
-- Snippets ("my email" -> an address): typed exactly as written, line breaks and all. They
-  match anywhere in a dictation, which is what makes them useful mid-sentence ("send it to my
-  email"); when the whole dictation is the trigger, the result is just the snippet, without the
-  full stop and capital the model added around it.
+- Snippets ("my email" -> an address): typed exactly as written, line breaks and all. A phrase
+  of two or more words matches anywhere in a dictation, which is what makes them useful
+  mid-sentence ("send it to my email"). A single word ("email") only fires when it is the whole
+  dictation: on its own it's too common, and "can you email me" must stay as said. When the
+  whole dictation is the trigger, the result is just the snippet, without the full stop and
+  capital the model added around it.
 
 Both match whole words and phrases only, ignoring case, so "cat" never changes "category". The
 words of a phrase may be joined by spaces or hyphens ("e-mail" matches "e mail"), and longer
@@ -54,4 +56,7 @@ def snippets(text: str, pairs) -> str:
     whole = _key(text.strip().rstrip(".!?,;:").strip())
     if whole in table:
         return table[whole]
-    return _pattern(table).sub(lambda m: table[_key(m.group(0))], text)
+    phrases = {k: v for k, v in table.items() if " " in k}
+    if not phrases:
+        return text
+    return _pattern(phrases).sub(lambda m: phrases[_key(m.group(0))], text)

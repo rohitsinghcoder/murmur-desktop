@@ -57,6 +57,13 @@ def test_snippets_whole_words_only(text):
     assert replace.snippets(text, SNIPPETS) == text
 
 
+def test_single_word_snippets_only_fire_on_their_own():
+    pairs = [["email", "rohit@example.com"], ["my address", "12 Park Street"]]
+    assert replace.snippets("Email.", pairs) == "rohit@example.com"
+    assert replace.snippets("Can you email me that so I can check it out?", pairs) ==         "Can you email me that so I can check it out?"
+    assert replace.snippets("Email me my address.", pairs) == "Email me 12 Park Street."
+
+
 def test_no_pairs():
     assert replace.snippets("My email.", []) == "My email."
     assert replace.dictionary("rohit", []) == "rohit"
