@@ -137,10 +137,10 @@
   --scroll-hover: rgba(24, 24, 27, 0.26);
 }
 
-/* While switching themes, colours ease across instead of snapping. */
-.theming, .theming *, .theming *::before, .theming *::after {
-  transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
-}
+/* Switching themes crossfades the whole window as one picture (switchTheme in app.js). */
+::view-transition-old(root), ::view-transition-new(root) { animation-duration: 0.3s; animation-timing-function: ease; }
+::view-transition { pointer-events: none; }  /* the page stays usable under the fade */
+.instant, .instant *, .instant *::before, .instant *::after { transition: none !important; }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }

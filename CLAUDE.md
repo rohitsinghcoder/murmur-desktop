@@ -63,6 +63,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   in a rule. Dark shows depth by lightness, light by white surfaces with soft shadows, and uses
   deeper accent/green/red for text. The hands-free bar and logo tile stay dark in both. The
   theme is passed in the page URL so the first frame is right; title bar and tray menu follow.
+  A switch crossfades the whole page as one view transition (`switchTheme` in app.js; per-element
+  colour transitions went out of step and stuttered); the page calls `Bridge.themeShown` halfway
+  and the title bar switches then.
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).

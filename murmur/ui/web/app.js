@@ -119,13 +119,7 @@ const isOn = (el) => el.getAttribute("aria-checked") === "true";
 
 // `setting` is system, light or dark; `resolved` is what that means right now.
 function applyTheme(setting, resolved) {
-  const root = document.documentElement;
-  if (root.dataset.theme !== resolved) {
-    root.classList.add("theming");
-    root.dataset.theme = resolved;
-    clearTimeout(applyTheme.timer);
-    applyTheme.timer = setTimeout(() => root.classList.remove("theming"), 350);
-  }
+  if ((switchTheme.to || document.documentElement.dataset.theme) !== resolved) switchTheme(resolved);
   setRadios($('[data-radios="theme"]'), setting);
   // The sidebar toggle shows where it will take you.
   const toggle = $("[data-theme-toggle]");
@@ -138,6 +132,44 @@ function applyTheme(setting, resolved) {
     toggle.classList.remove("turn");
     if (!first) { void toggle.offsetWidth; toggle.classList.add("turn"); }
   }
+}
+
+// The whole window crossfades from a picture of the old theme to the new one (a view
+// transition), so every part changes together. Easing each element's colours instead left parts
+// that applyState re-renders (keycaps), the scrollbar and placeholders snapping ahead, and
+// repainted so much that it ran at a few frames a second. Murmur switches the title bar halfway.
+const THEME_MS = 300;  // ::view-transition-*(root) in style.css
+function switchTheme(theme) {
+  const root = document.documentElement;
+  switchTheme.to = theme;  // state comes twice for one switch; the second mustn't restart it
+  const set = () => {
+    // Without the elements' own transitions (hover fades), or they'd ease in late.
+    root.classList.add("instant");
+    root.dataset.theme = theme;
+    void root.offsetWidth;
+    root.classList.remove("instant");
+  };
+  const shown = () => { if (switchTheme.to === theme) bridge.themeShown(); };
+  if (!document.startViewTransition || document.hidden || matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    set();
+    shown();
+    return;
+  }
+  document.startViewTransition(set).ready.then(() => {
+    // Painting the new theme takes a while (every pixel changes; ~150 ms here), and the fade's
+    // clock would run meanwhile, so it'd appear half done. Hold it just after its start, which
+    // makes the new theme paint (a fully transparent picture isn't), and let it go a few frames
+    // later, once that paint is through.
+    const fade = document.getAnimations().filter((a) => a.effect?.pseudoElement?.startsWith("::view-transition"));
+    fade.forEach((a) => { a.pause(); a.currentTime = 1; });
+    const hold = (frames) => requestAnimationFrame(() => {
+      if (frames > 1) return hold(frames - 1);
+      fade.forEach((a) => a.play());
+      // "ease" is halfway at 30% of the time.
+      Promise.all(fade.map((a) => a.ready)).then(() => setTimeout(shown, THEME_MS * 0.3));
+    });
+    hold(4);
+  }, shown);
 }
 
 // Segmented controls are radio groups: one tab stop (the chosen option), and the arrow keys,
@@ -765,6 +797,7 @@ function sampleBridge() {
     })),
     setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
+    themeShown() {},
     setPaused(p) { paused = p; stateChanged.emit(); },
     // A pretend voice for the mic check: a few seconds of quiet, then talking.
     startMicCheck(cb) {

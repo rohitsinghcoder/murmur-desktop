@@ -8,7 +8,7 @@ import os
 import threading
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QUrl, Signal, Slot
+from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -35,6 +35,7 @@ class Bridge(QObject):
     speedResult = Signal(str)
     startupChanged = Signal(str)  # an error message, or "" when it worked
     micLevel = Signal(float)  # 0..1, while the mic check on Home runs
+    pageThemed = Signal()  # the page is halfway into a new theme; MainWindow's frame follows
 
     def __init__(self, app):
         super().__init__()
@@ -118,6 +119,10 @@ class Bridge(QObject):
     @Slot(str)
     def setTheme(self, setting: str):
         self.app.set_theme(setting)
+
+    @Slot()
+    def themeShown(self):
+        self.pageThemed.emit()
 
     @Slot(str, str)
     def setOption(self, key: str, value: str):
@@ -224,13 +229,19 @@ class MainWindow(QWidget):
         # The theme rides in the URL so the first frame is already in it (no flash).
         url = QUrl.fromLocalFile(str(WEB / "index.html"))
         url.setQuery(f"theme={app.theme}")
-        self._apply_theme(app.theme)
-        app.theme_changed.connect(self._apply_theme)
+        # The page crossfades to a new theme and says when it's halfway (Bridge.themeShown);
+        # the frame switches then, not ahead of it. The timer covers a page that can't say.
+        self._frame_timer = QTimer(self, singleShot=True, interval=1000, timeout=self._apply_frame)
+        app.theme_changed.connect(lambda _: self._frame_timer.start())
+        self.bridge.pageThemed.connect(self._apply_frame)
+        self._apply_frame()
         page.load(url)
         lay.addWidget(self.view)
 
-    def _apply_theme(self, theme: str):
-        # The page eases its own colours; the frame and the fill behind the page follow.
+    def _apply_frame(self):
+        """The title bar and the fill behind the page, in the current theme."""
+        self._frame_timer.stop()
+        theme = self.app.theme
         self.setStyleSheet(f"background: {style.BG[theme]};")
         self.view.page().setBackgroundColor(QColor(style.BG[theme]))
         if self.isVisible():
