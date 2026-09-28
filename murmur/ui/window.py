@@ -43,14 +43,26 @@ class Bridge(QObject):
     def __init__(self, app):
         super().__init__()
         self.app = app
-        app.status_changed.connect(self.stateChanged)
-        app.hotkey_changed.connect(lambda _: self.stateChanged.emit())
-        app.history_changed.connect(self.historyChanged)
-        app.hotkey_recorded.connect(self._recorded)
-        app.speed_result.connect(self.speedResult)
-        app.theme_changed.connect(lambda _: self.stateChanged.emit())
-        app.paused_changed.connect(lambda _: self.stateChanged.emit())
+        # Kept, so detach() can undo them when the window is released (see MainWindow.release).
+        self._links = [
+            (app.status_changed, self.stateChanged),
+            (app.hotkey_changed, lambda _: self.stateChanged.emit()),
+            (app.history_changed, self.historyChanged),
+            (app.hotkey_recorded, self._recorded),
+            (app.speed_result, self.speedResult),
+            (app.theme_changed, lambda _: self.stateChanged.emit()),
+            (app.paused_changed, lambda _: self.stateChanged.emit()),
+        ]
+        for signal, slot in self._links:
+            signal.connect(slot)
         self.monitor = mics.Monitor(self.micLevel.emit)
+
+    def detach(self):
+        """Stops listening to Murmur: the window is going away."""
+        for signal, slot in self._links:
+            signal.disconnect(slot)
+        self._links = []
+        self.monitor.stop()
 
     @Slot(result=str)
     def state(self) -> str:
@@ -241,7 +253,8 @@ class MainWindow(QWidget):
         # the frame's own bits (the border's dark mode, the fill behind the page) follow then.
         # The timer covers a page that can't say.
         self._frame_timer = QTimer(self, singleShot=True, interval=1000, timeout=self._apply_frame)
-        app.theme_changed.connect(lambda _: self._frame_timer.start())
+        self._on_theme = lambda _: self._frame_timer.start()
+        app.theme_changed.connect(self._on_theme)
         self.bridge.pageThemed.connect(self._apply_frame)
         self.bridge.windowAction.connect(self._window_action)
         self._apply_frame()
@@ -289,6 +302,13 @@ class MainWindow(QWidget):
         self.raise_()
         self.activateWindow()
         self.bridge.historyChanged.emit()
+
+    def release(self):
+        """Frees the window (its web view is ~130 MB) once it's been closed a while; Murmur makes
+        a new one when it's opened again."""
+        self.app.theme_changed.disconnect(self._on_theme)
+        self.bridge.detach()
+        self.deleteLater()
 
     def closeEvent(self, event):
         # Closing the window keeps Murmur running in the tray, like Wispr Flow.

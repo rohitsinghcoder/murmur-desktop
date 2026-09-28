@@ -320,3 +320,17 @@ def test_cut_pause_shortens_as_the_open_stretch_grows():
 ])
 def test_pieces_join_without_doubled_punctuation(pieces, text):
     assert dictation.join(pieces) == text
+
+
+def test_an_unloaded_model_loads_again_when_needed(monkeypatch):
+    loads = []
+    monkeypatch.setattr(dictation.engine, "load", lambda: loads.append(1) or "model")
+    monkeypatch.setattr(dictation.engine, "transcribe", lambda rec, audio: f"{rec} heard {len(audio)}")
+    monkeypatch.setattr(dictation.engine, "unload", lambda: None)
+    d = dictation.Dictation("model")
+    assert d.transcribe(np.zeros(10, np.float32)) == "model heard 10" and not loads
+    d.unload()
+    d.executor.submit(lambda: None).result()  # unloading is queued on the decode thread
+    assert not d.loaded
+    assert d.transcribe(np.zeros(10, np.float32)) == "model heard 10"
+    assert loads == [1] and d.loaded

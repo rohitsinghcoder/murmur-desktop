@@ -15,6 +15,7 @@ DEFAULTS = {
     "microphone": "",  # a device name; "" is the Windows default (murmur/mics.py)
     "show_bar": True,  # the resting bar at the bottom of the screen
     "sounds": False,  # a soft sound when dictation starts and stops
+    "save_memory": False,  # unload the speech model after IDLE_UNLOAD_MIN without dictating
     "keep_history": "forever",  # forever, year, month or off (history.KEEP)
     "dictionary": [],  # [heard, write] pairs (murmur/replace.py)
     "snippets": [],  # [trigger, text] pairs (murmur/replace.py)
@@ -36,6 +37,7 @@ OPTIONS = {
     "microphone": lambda v: isinstance(v, str) and len(v) <= 300,
     "show_bar": lambda v: isinstance(v, bool),
     "sounds": lambda v: isinstance(v, bool),
+    "save_memory": lambda v: isinstance(v, bool),
     "keep_history": lambda v: isinstance(v, str) and v in history.KEEP,
     "dictionary": _pairs,
     "snippets": _pairs,

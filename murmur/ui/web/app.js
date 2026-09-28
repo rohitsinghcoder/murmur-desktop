@@ -781,7 +781,7 @@ function sampleBridge() {
   const light = matchMedia("(prefers-color-scheme: light)");
   let theme = "system", startup = false, paused = false;
   const options = {
-    remove_fillers: true, digits: true, voice_commands: true, sounds: false, show_bar: true, microphone: "", onboarded: new URLSearchParams(location.search).has("setup") ? false : true, keep_history: "forever",
+    remove_fillers: true, digits: true, voice_commands: true, sounds: false, save_memory: false, show_bar: true, microphone: "", onboarded: new URLSearchParams(location.search).has("setup") ? false : true, keep_history: "forever",
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
     snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };

@@ -28,6 +28,10 @@ log = logging.getLogger("murmur.app")
 NOTHING_HEARD_MIN_MS = 600
 # Dictations in the tray's Recent menu, and how much of each it shows.
 RECENT = 5
+# Minutes the closed window is kept before it's released, and (with "save_memory" on) minutes
+# without dictating before the speech model is unloaded. It loads again while you speak.
+RELEASE_WINDOW_MIN = 5
+IDLE_UNLOAD_MIN = 10
 RECENT_CHARS = 48
 
 
@@ -87,6 +91,12 @@ class App(QObject):
         # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
         # with Windows it often never is.
         self.window: MainWindow | None = None
+        # Closed for a while, the window is released to free its memory (MainWindow.release).
+        self._release_timer = QTimer(self, singleShot=True, interval=RELEASE_WINDOW_MIN * 60_000,
+                                     timeout=self._release_window)
+        # With "save_memory" on, the model is unloaded after a while without dictating.
+        self._idle_timer = QTimer(self, singleShot=True, interval=IDLE_UNLOAD_MIN * 60_000,
+                                  timeout=self._idle)
 
         self.tray = QSystemTrayIcon(style.logo_icon(gray=True))
         menu = QMenu()
@@ -186,6 +196,8 @@ class App(QObject):
         self.target_app = inserter.foreground_app()
         self.pill.recording(hands_free)
         self.sounds.start()
+        if self.settings["save_memory"]:
+            self._idle_timer.start()  # counts from the latest dictation
         return True
 
     def on_start(self):
@@ -295,6 +307,13 @@ class App(QObject):
         history.prune()
         self.history_changed.emit()
         self.sounds.set_enabled(self.settings["sounds"])
+        if self.settings["save_memory"]:
+            if not self._idle_timer.isActive():
+                self._idle_timer.start()
+        else:
+            self._idle_timer.stop()
+            if self.dictation:
+                self.dictation.preload()  # turned off while unloaded: bring it back now
         self.pill.set_show_idle(self.settings["show_bar"])
         if self.dictation:
             # A microphone that isn't connected falls back to the default until it's back.
@@ -347,9 +366,24 @@ class App(QObject):
     # Window and tray.
 
     def show_window(self):
+        self._release_timer.stop()
         if self.window is None:
             self.window = MainWindow(self)
         self.window.bring_to_front()
+
+    def _release_window(self):
+        if self.window is not None and not self.window.isVisible():
+            self.window.release()
+            self.window = None
+            log.info("Released the closed window")
+
+    def _idle(self):
+        if not (self.settings["save_memory"] and self.dictation):
+            return
+        if self.dictation.busy:
+            self._idle_timer.start()
+        else:
+            self.dictation.unload()
 
     def _tray_clicked(self, reason):
         if reason == QSystemTrayIcon.Trigger:
@@ -415,6 +449,7 @@ class App(QObject):
         self.paused_changed.emit(paused)
 
     def window_closed(self):
+        self._release_timer.start()
         if not self._told_about_tray:
             self._told_about_tray = True
             self.tray.showMessage("Murmur is still running",

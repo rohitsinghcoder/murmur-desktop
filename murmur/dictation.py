@@ -12,6 +12,7 @@ The model transcribes whole stretches of audio, so to keep the wait after you st
 The mic is read on its own (audio callback) thread and queued, so a slow step never makes the
 recorder drop audio.
 """
+import gc
 import logging
 import math
 import queue
@@ -218,7 +219,38 @@ class Dictation:
 
     def transcribe(self, audio: np.ndarray) -> str:
         """Transcribes on the decode thread, so it never runs at the same time as a dictation."""
-        return self.executor.submit(engine.transcribe, self.rec, audio).result()
+        return self.executor.submit(lambda: engine.transcribe(self._model(), audio)).result()
+
+    @property
+    def loaded(self) -> bool:
+        return self.rec is not None
+
+    def _model(self):
+        """The model, loaded again first if it was unloaded to save memory. On the decode thread."""
+        if self.rec is None:
+            t0 = time.perf_counter()
+            rec = engine.load()
+            engine.transcribe(rec, np.zeros(SR, np.float32))  # warm-up, as at start
+            self.rec = rec
+            log.info("Speech model loaded again in %.1f s", time.perf_counter() - t0)
+        return self.rec
+
+    def unload(self):
+        """Frees the model's memory; the next dictation loads it again while you speak. Queued
+        on the decode thread, after any transcription still running."""
+        def drop():
+            if self.rec is None or self.busy:
+                return
+            self.rec = None
+            engine.unload()
+            gc.collect()
+            log.info("Speech model unloaded to save memory")
+        self.executor.submit(drop)
+
+    def preload(self):
+        """Starts loading the model now if it was unloaded, so it's there when needed."""
+        if self.rec is None:
+            self.executor.submit(self._model)
 
     def listen(self, hands_free=False) -> bool:
         """Starts listening. Returns False if a dictation is still running."""
@@ -227,6 +259,8 @@ class Dictation:
         self._recording = True
         self._cancelled = False
         self.hands_free = hands_free
+        # If the model was unloaded, it loads while you speak; the text waits for it, not the mic.
+        self.preload()
         threading.Thread(target=self._run, name="murmur-dictation", daemon=True).start()
         return True
 
@@ -312,7 +346,7 @@ class Dictation:
                 log.warning("Couldn't close the microphone", exc_info=True)
 
     def _session(self):
-        session = Session(lambda audio: engine.tokens(self.rec, audio), self.executor)
+        session = Session(lambda audio: engine.tokens(self._model(), audio), self.executor)
         try:
             chunks = self._open_mic()
         except Exception as e:

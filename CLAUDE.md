@@ -74,6 +74,11 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).
+- Memory: the model is ~670 MB, Chromium's in-process side ~160 MB, the page's renderer process
+  ~130 MB. A closed window is released after `RELEASE_WINDOW_MIN` (`MainWindow.release`; Bridge
+  keeps its app-signal connections in `_links` so `detach()` can undo them, or lambdas fire at
+  the deleted window). With `save_memory`, `Dictation.unload()` drops the model after
+  `IDLE_UNLOAD_MIN`; `listen()` preloads it, so it loads (~3.5 s) while you speak.
 
 ## Windows quirks
 - Default hotkey is Right Ctrl because Wispr Flow owns Ctrl+Win.

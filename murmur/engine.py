@@ -57,6 +57,13 @@ def load(num_threads: int = 4, directory: Path = MODEL_DIR) -> sherpa_onnx.Offli
         return _recognizer
 
 
+def unload():
+    """Drops the model, freeing its memory (about 670 MB). load() brings it back (~3.5 s)."""
+    global _recognizer
+    with _lock:
+        _recognizer = None
+
+
 def tokens(rec: sherpa_onnx.OfflineRecognizer, audio: np.ndarray) -> list[tuple[str, float]]:
     """The recognised pieces of text for 16 kHz mono audio, each with the time (seconds into the
     audio) it was heard. A piece starting a new word begins with a space, so joining them all
