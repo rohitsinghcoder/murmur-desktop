@@ -32,12 +32,19 @@ def _migrate():
             pass
 
 
+_last_time = 0
+
+
 def add(text: str, audio_ms: int, app: str | None):
     if app == TRY_IT or keep == "off" or not text.strip():
         return
     _migrate()
     DIR.mkdir(parents=True, exist_ok=True)
-    entry = {"time": int(time.time() * 1000), "text": text, "audioMs": audio_ms, "app": app}
+    # The time is also the entry's id (delete, undo), so it must be unique: two dictations saved
+    # within the same millisecond would otherwise be deleted together.
+    global _last_time
+    _last_time = max(int(time.time() * 1000), _last_time + 1)
+    entry = {"time": _last_time, "text": text, "audioMs": audio_ms, "app": app}
     with FILE.open("a", encoding="utf-8") as f:
         f.write(json.dumps(entry, ensure_ascii=False) + "\n")
     prune()

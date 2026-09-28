@@ -33,6 +33,16 @@ def test_add_and_delete(store):
     assert [e["text"] for e in history.load()] == ["Hello there."]
 
 
+def test_entries_saved_in_the_same_millisecond_get_their_own_ids(store, monkeypatch):
+    monkeypatch.setattr(history.time, "time", lambda: 1_700_000_000.0)
+    history.add("One.", 1000, "notepad.exe")
+    history.add("Two.", 1000, "notepad.exe")
+    first, second = history.load()
+    assert first["time"] != second["time"]
+    history.delete(first["time"])
+    assert [e["text"] for e in history.load()] == ["One."]
+
+
 def test_try_it_box_is_not_saved(store):
     history.add("Just testing.", 1000, history.TRY_IT)
     history.add("\n", 1000, "notepad.exe")  # "new line" on its own: typed, but nothing to keep
