@@ -14,6 +14,11 @@
   --sans: "Geist", "Segoe UI Variable Text", "Segoe UI", sans-serif;
   --mono: "Geist Mono", "Cascadia Mono", Consolas, monospace;
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
+  --titlebar-h: 36px;  /* frame.TITLE_H */
+  /* Windows' own close-button red, in both themes. */
+  --close-hover: #c42b1c;
+  --close-press: #a52a1c;
+  --close-text: #ffffff;
 }
 
 /* Dark: depth comes from lightness. The page is darkest and each raised layer (sidebar, card,
@@ -204,7 +209,27 @@ nav { display: flex; flex-direction: column; gap: 2px; }
 @keyframes turn-in { from { transform: rotate(-90deg) scale(0.4); opacity: 0; } }
 
 /* Pages */
-main { flex: 1; overflow-y: auto; }
+/* Title bar: the strip belongs to Windows (drag, double-click to maximise, snap), so it takes no
+   clicks here; only the window buttons do. Their width is frame.BUTTONS_W. The page scrolls
+   below it. Glyphs from Windows' own icon font, as in its title bars. */
+.titlebar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 30; height: var(--titlebar-h);
+  display: flex; justify-content: flex-end; pointer-events: none;
+}
+.window-buttons { display: flex; pointer-events: auto; }
+.window-buttons button {
+  width: 46px; height: var(--titlebar-h); border: 0; background: transparent; color: var(--text-2);
+  font: 10px "Segoe Fluent Icons", "Segoe MDL2 Assets"; cursor: default; transition: background 0.1s, color 0.1s;
+}
+.window-buttons button:hover { background: var(--icon-hover); color: var(--text); }
+.window-buttons button:active { background: var(--line-2); }
+.window-buttons .close:hover { background: var(--close-hover); color: var(--close-text); }
+.window-buttons .close:active { background: var(--close-press); color: var(--close-text); }
+.inactive .window-buttons button:not(:hover) { color: var(--faint); }  /* like Windows' own */
+.window-buttons .restore, .maximized .window-buttons .max { display: none; }
+.maximized .window-buttons .restore { display: inline; }
+
+main { flex: 1; overflow-y: auto; margin-top: var(--titlebar-h); }
 .page { display: none; max-width: 820px; margin: 0 auto; padding: 44px 56px 80px; }
 .page.active { display: block; animation: page-in 0.35s var(--ease); }
 @keyframes page-in { from { opacity: 0; transform: translateY(6px); } }

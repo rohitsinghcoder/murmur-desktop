@@ -137,7 +137,8 @@ function applyTheme(setting, resolved) {
 // The whole window crossfades from a picture of the old theme to the new one (a view
 // transition), so every part changes together. Easing each element's colours instead left parts
 // that applyState re-renders (keycaps), the scrollbar and placeholders snapping ahead, and
-// repainted so much that it ran at a few frames a second. Murmur fades the title bar alongside.
+// repainted so much that it ran at a few frames a second. The title bar is part of the page
+// (see ui/frame.py), so it fades with it; Murmur switches the frame's border halfway.
 const THEME_MS = 300;  // ::view-transition-*(root) in style.css
 function switchTheme(theme) {
   const root = document.documentElement;
@@ -165,8 +166,8 @@ function switchTheme(theme) {
     const hold = (frames) => requestAnimationFrame(() => {
       if (frames > 1) return hold(frames - 1);
       fade.forEach((a) => a.play());
-      // Murmur fades the title bar over the same time, from now.
-      Promise.all(fade.map((a) => a.ready)).then(() => { if (switchTheme.to === theme) bridge.themeFading(THEME_MS); });
+      // "ease" is halfway at 30% of the time.
+      Promise.all(fade.map((a) => a.ready)).then(() => setTimeout(shown, THEME_MS * 0.3));
     });
     hold(4);
   }, shown);
@@ -665,6 +666,9 @@ function showPage(name) {
 }
 
 function wire() {
+  $$("[data-window]").forEach((b) => (b.onclick = () => bridge.window(b.dataset.window)));
+  addEventListener("blur", () => document.documentElement.classList.add("inactive"));
+  addEventListener("focus", () => document.documentElement.classList.remove("inactive"));
   $$("[data-nav]").forEach((b) => (b.onclick = () => showPage(b.dataset.nav)));
   let debounce;
   const search = () => { limit = PAGE; renderHistory(); };
@@ -758,6 +762,10 @@ function connect(b) {
   b.speedResult.connect(onSpeed);
   b.startupChanged.connect(onStartup);
   b.micLevel.connect(onMicLevel);
+  b.maximizedChanged.connect((on) => {
+    document.documentElement.classList.toggle("maximized", on);
+    $('[data-window="maximize"]').title = on ? "Restore" : "Maximize";
+  });
   loadState();
   loadHistory();
 }
@@ -789,7 +797,7 @@ function sampleBridge() {
     [now - 3 * d, "Meeting notes: ship the settings page, then the shortcut picker, then the new bar.", 6800, "notepad.exe"],
   ].map(([time, text, audioMs, app]) => ({ time, text, audioMs, app }));
   return {
-    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(), startupChanged, micLevel,
+    stateChanged, historyChanged: signal(), hotkeyRecorded: signal(), speedResult: signal(), maximizedChanged: signal(), startupChanged, micLevel,
     state: (cb) => cb(JSON.stringify({
       hotkey: ["Right Ctrl"], hotkeyText: "Right Ctrl", isDefaultHotkey: true, status: "ready", statusText: "Ready",
       version: "0.3.0", model: "NVIDIA Parakeet TDT 0.6B v2 (int8)", loadSecs: 2.7, lastLatencyMs: 140,
@@ -797,7 +805,7 @@ function sampleBridge() {
     })),
     setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
-    themeShown() {}, themeFading() {},
+    themeShown() {}, window() {},
     setPaused(p) { paused = p; stateChanged.emit(); },
     // A pretend voice for the mic check: a few seconds of quiet, then talking.
     startMicCheck(cb) {

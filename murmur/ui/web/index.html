@@ -13,6 +13,15 @@
 <script src="qrc:///qtwebchannel/qwebchannel.js"></script>
 </head>
 <body>
+<!-- The window's title bar, drawn here so it changes theme with the page (see ui/frame.py).
+     Windows treats the strip as the title bar (drag, double-click, snap); the buttons are ours. -->
+<div class="titlebar">
+  <div class="window-buttons">
+    <button data-window="minimize" title="Minimize" tabindex="-1">&#xE921;</button>
+    <button data-window="maximize" title="Maximize" tabindex="-1"><span class="max">&#xE922;</span><span class="restore">&#xE923;</span></button>
+    <button data-window="close" class="close" title="Close" tabindex="-1">&#xE8BB;</button>
+  </div>
+</div>
 <aside class="sidebar">
   <div class="brand">
     <span class="logo" data-logo></span>

@@ -6,10 +6,10 @@ import json
 import logging
 import os
 import threading
-import time
+from ctypes import wintypes
 from pathlib import Path
 
-from PySide6.QtCore import QObject, Qt, QTimer, QUrl, Signal, Slot
+from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal, Slot
 from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
 from PySide6.QtWebChannel import QWebChannel
 from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
@@ -18,13 +18,12 @@ from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from .. import engine, history, logfile, mics, settings, startup
 from .. import hotkey as hk
-from . import style
+from . import frame, style
 
 WEB = Path(__file__).resolve().parent / "web"
 VERSION = "0.3.0"
 REPO = "https://github.com/rohitsinghcoder/murmur-desktop"
 DEFAULT_HOTKEY = ["rctrl"]
-PAGE_LAG_S = 0.035  # measured: the title bar led the page's crossfade by 30-40 ms without it
 log = logging.getLogger("murmur.window")
 
 
@@ -37,8 +36,9 @@ class Bridge(QObject):
     speedResult = Signal(str)
     startupChanged = Signal(str)  # an error message, or "" when it worked
     micLevel = Signal(float)  # 0..1, while the mic check on Home runs
-    pageThemed = Signal()  # the page switched theme at once; MainWindow's frame follows
-    pageFading = Signal(int)  # the page's crossfade to a new theme starts now, lasting this many ms
+    pageThemed = Signal()  # the page is halfway into a new theme; MainWindow's frame follows
+    maximizedChanged = Signal(bool)  # for the page's maximise/restore button
+    windowAction = Signal(str)  # the page's window buttons: minimize, maximize, close
 
     def __init__(self, app):
         super().__init__()
@@ -127,9 +127,9 @@ class Bridge(QObject):
     def themeShown(self):
         self.pageThemed.emit()
 
-    @Slot(int)
-    def themeFading(self, ms: int):
-        self.pageFading.emit(ms)
+    @Slot(str)
+    def window(self, action: str):
+        self.windowAction.emit(action)
 
     @Slot(str, str)
     def setOption(self, key: str, value: str):
@@ -236,49 +236,50 @@ class MainWindow(QWidget):
         # The theme rides in the URL so the first frame is already in it (no flash).
         url = QUrl.fromLocalFile(str(WEB / "index.html"))
         url.setQuery(f"theme={app.theme}")
-        # The page crossfades to a new theme and says when the fade starts (Bridge.themeFading);
-        # the title bar then fades alongside it, so the top of the window doesn't lag or lead.
-        # Without a fade it says when it switched (themeShown). The timer covers a page that
-        # can't say.
-        self._frame_theme = app.theme  # what the frame shows
+        # The page draws the title bar itself (see frame.py), so a theme switch changes the whole
+        # window at once. The page crossfades and says when it's halfway (Bridge.themeShown);
+        # the frame's own bits (the border's dark mode, the fill behind the page) follow then.
+        # The timer covers a page that can't say.
         self._frame_timer = QTimer(self, singleShot=True, interval=1000, timeout=self._apply_frame)
-        self._fade_timer = QTimer(self, interval=10, timeout=self._fade_step)
-        self._fade = None  # (started, seconds, from theme, to theme)
         app.theme_changed.connect(lambda _: self._frame_timer.start())
         self.bridge.pageThemed.connect(self._apply_frame)
-        self.bridge.pageFading.connect(self._fade_frame)
+        self.bridge.windowAction.connect(self._window_action)
         self._apply_frame()
         page.load(url)
         lay.addWidget(self.view)
 
     def _apply_frame(self):
-        """The title bar and the fill behind the page, in the current theme."""
+        """The window frame and the fill behind the page, in the current theme."""
         self._frame_timer.stop()
-        self._fade_timer.stop()
-        theme = self._frame_theme = self.app.theme
+        theme = self.app.theme
         self.setStyleSheet(f"background: {style.BG[theme]};")
         self.view.page().setBackgroundColor(QColor(style.BG[theme]))
         if self.isVisible():
             style.title_bar(self, theme)
 
-    def _fade_frame(self, ms: int):
-        self._frame_timer.stop()
-        if not self.isVisible() or self._frame_theme == self.app.theme:
-            self._apply_frame()
-            return
-        # The page's frames reach the screen a frame or two after its fade's clock starts.
-        self._fade = (time.perf_counter() + PAGE_LAG_S, ms / 1000, self._frame_theme, self.app.theme)
-        self._fade_step()
-        self._fade_timer.start()
+    def nativeEvent(self, event_type, message):
+        if event_type == b"windows_generic_MSG":
+            result = frame.handle(wintypes.MSG.from_address(int(message)), self.devicePixelRatioF())
+            if result is not None:
+                return True, result
+        return super().nativeEvent(event_type, message)
 
-    def _fade_step(self):
-        started, seconds, old, new = self._fade
-        t = min(1.0, max(0.0, (time.perf_counter() - started) / seconds))
-        if t >= 1.0 or new != self.app.theme:
-            self._apply_frame()
-            return
-        # The page fades with CSS "ease"; the frame follows the same curve.
-        style.title_bar(self, old, towards=new, amount=style.ease(t))
+    def showEvent(self, event):
+        super().showEvent(event)
+        frame.refresh(int(self.winId()))
+
+    def changeEvent(self, event):
+        super().changeEvent(event)
+        if event.type() == QEvent.WindowStateChange:
+            self.bridge.maximizedChanged.emit(self.isMaximized())
+
+    def _window_action(self, action: str):
+        if action == "minimize":
+            self.showMinimized()
+        elif action == "maximize":
+            self.showNormal() if self.isMaximized() else self.showMaximized()
+        elif action == "close":
+            self.close()
 
     def bring_to_front(self):
         if self.isMinimized():

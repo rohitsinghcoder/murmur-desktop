@@ -64,10 +64,13 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   deeper accent/green/red for text. The hands-free bar and logo tile stay dark in both. The
   theme is passed in the page URL so the first frame is right; title bar and tray menu follow.
   A switch crossfades the whole page as one view transition (`switchTheme` in app.js; per-element
-  colour transitions went out of step and stuttered); the page calls `Bridge.themeFading(ms)` as
-  it starts and `MainWindow` fades the title bar's caption and text colours (DWM attributes 35,
-  36) along the same CSS "ease" curve, 35 ms later (the page's frames reach the screen late);
-  the dark-mode flag (window buttons) flips halfway.
+  colour transitions went out of step and stuttered). The title bar is part of the page, so it
+  fades with it; the frame's dark-mode flag (border) flips halfway (`Bridge.themeShown`).
+- `ui/frame.py`: no Windows title bar. WM_NCCALCSIZE keeps the frame (shadow, corners, resize,
+  snap) but gives the caption to the page; WM_NCHITTEST makes the page's top strip
+  (`TITLE_H` 36 px, minus `BUTTONS_W` for its min/max/close buttons, `.titlebar` in style.css)
+  the caption. A native caption can't be kept in step with the page's crossfade: its colour
+  reached the screen 0-40 ms apart from the page's, varying with load.
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).
