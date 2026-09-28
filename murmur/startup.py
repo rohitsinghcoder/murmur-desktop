@@ -15,7 +15,7 @@ ICON = ROOT / "assets" / "murmur.ico"
 _CREATE = """
 $link = (New-Object -ComObject WScript.Shell).CreateShortcut($env:MURMUR_LINK)
 $link.TargetPath = $env:MURMUR_PYTHON
-$link.Arguments = "-m murmur --background"
+$link.Arguments = $env:MURMUR_ARGS
 $link.IconLocation = $env:MURMUR_ICON
 $link.WorkingDirectory = $env:MURMUR_ROOT
 $link.Description = "Murmur: private voice typing. Hold Right Ctrl to dictate."
@@ -33,9 +33,14 @@ def _startup_folder() -> Path:
 LINK = _startup_folder() / "Murmur.lnk"
 
 
+FROZEN = getattr(sys, "frozen", False)  # the installed Murmur.exe, not Python running the source
+
+
 def pythonw() -> Path:
-    """The running Python's windowless twin, so no console opens at login."""
+    """The running Python's windowless twin, so no console opens at login (or Murmur.exe)."""
     exe = Path(sys.executable)
+    if FROZEN:
+        return exe
     twin = exe.with_name("pythonw.exe")
     return twin if twin.exists() else exe
 
@@ -45,8 +50,10 @@ def enabled(link: Path = LINK) -> bool:
 
 
 def enable(link: Path = LINK):
-    env = {**os.environ, "MURMUR_LINK": str(link), "MURMUR_PYTHON": str(pythonw()),
-           "MURMUR_ICON": str(ICON), "MURMUR_ROOT": str(ROOT)}
+    exe = pythonw()
+    env = {**os.environ, "MURMUR_LINK": str(link), "MURMUR_PYTHON": str(exe),
+           "MURMUR_ARGS": "--background" if FROZEN else "-m murmur --background",
+           "MURMUR_ICON": str(exe if FROZEN else ICON), "MURMUR_ROOT": str(exe.parent if FROZEN else ROOT)}
     subprocess.run(["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
                     "-Command", _CREATE], env=env, check=True, capture_output=True, timeout=30,
                    creationflags=subprocess.CREATE_NO_WINDOW)
