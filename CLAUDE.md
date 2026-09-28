@@ -17,8 +17,10 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   Android app's Nemotron streaming model: much better punctuation, and streaming split sentences
   at pauses ("like. Be something"). Live text isn't shown on Windows by design.
 - `dictation.Session` hides the latency: background transcription at every 0.3 s pause (used if
-  nothing was said after it), and pieces finished at pauses once 5 s is open, each transcribed
-  with 2 s context before and 1.5 s after, keeping only tokens timestamped inside the piece.
+  nothing was said after it), and pieces finished at pauses once 5 s is open (the pause needed
+  shrinks from 0.35 s to 0.15 s as it grows), each transcribed with 2 s context before and 1.5 s
+  after, keeping only tokens timestamped inside the piece; `join` drops punctuation heard on
+  both sides of a cut.
 
 ## Layout (`murmur/`)
 - `engine.py`: loads the model; `tokens()` returns (text piece, seconds) pairs.
@@ -37,7 +39,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   names (`rctrl`, `ctrl`+`shift`+`vk_20`); combo trigger keys are swallowed, Win/Alt combos get
   a dummy key so Start/menus don't open. Also records a new hotkey for Settings. Injected keys
   and AltGr's fake Left Ctrl are ignored.
-- `inserter.py`: clipboard paste + restore, SendInput Unicode typing fallback.
+- `inserter.py`: clipboard paste, then restores every clipboard format (images, files, rich
+  text; GDI-handle formats skipped, EMF copied). SendInput typing is a last resort only: Electron
+  apps (Claude, VS Code) take typed keys slowly, in bursts, and can drop some.
 - `pill.py`: Wispr-Flow-style bar (no live text by design). Spring-animated; masked so only the
   pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus. A check mark after
   inserting; messages can take a click action.

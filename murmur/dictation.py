@@ -38,6 +38,11 @@ SPECULATE_AFTER_S = 0.3
 # Once this much speech is unfinished, finish it at the next pause of CUT_PAUSE_S...
 CUT_AFTER_S = 5.0
 CUT_PAUSE_S = 0.35
+# ...and as it grows, at ever shorter ones: CUT_PAUSE_MIN_S once it's CUT_SHORTEN_S longer. A
+# fluent talker rarely pauses long, and whatever is unfinished at the stop is what you wait for.
+# Short pauses are safe cuts: each piece still hears the audio around it.
+CUT_PAUSE_MIN_S = 0.15
+CUT_SHORTEN_S = 4.0
 # ...or anyway at this length.
 MAX_OPEN_S = 30.0
 # Audio either side of a piece that the model hears for context, without keeping its words.
@@ -56,6 +61,9 @@ MIC_KEEP_OPEN_S = 10.0
 # Hands-free dictation finishes by itself (delivering the text) after this long without speech,
 # so a forgotten one doesn't keep the mic open for ever. Long enough to stop and think.
 HANDS_FREE_IDLE_S = 60.0
+
+
+PUNCTUATION = ",.;:!?"
 
 
 def db(chunk: np.ndarray) -> float:
@@ -127,7 +135,7 @@ class Session:
         spoke = self.last_voice > self.done_until
         if self.cut_at is None:
             open_samples = self.samples - self.done_until
-            if spoke and open_samples >= CUT_AFTER_S * SR and self.quiet >= CUT_PAUSE_S * SR:
+            if spoke and open_samples >= CUT_AFTER_S * SR and self.quiet >= cut_pause(open_samples / SR) * SR:
                 self.cut_at = self.samples - self.quiet // 2
             elif open_samples >= MAX_OPEN_S * SR:
                 self.cut_at = self.samples  # no pause for a long time: cut anyway
@@ -148,7 +156,25 @@ class Session:
             if self.guess:
                 self.guess[1].cancel()  # outdated; skipped if it hasn't started yet
             last = self._transcribe(float("inf"))
-        return ("".join(f.result() for f in self.pieces) + last.result()).strip()
+        return join([f.result() for f in self.pieces] + [last.result()]).strip()
+
+
+def cut_pause(open_s: float) -> float:
+    """The pause that finishes a piece, once `open_s` seconds are unfinished (CUT_AFTER_S or more)."""
+    t = min(1.0, max(0.0, (open_s - CUT_AFTER_S) / CUT_SHORTEN_S))
+    return CUT_PAUSE_S - (CUT_PAUSE_S - CUT_PAUSE_MIN_S) * t
+
+
+def join(pieces: list[str]) -> str:
+    """Pieces' text in order. A comma or full stop right at a cut can be heard on both sides of
+    it ("observed Phebe,, turning"), so a piece doesn't repeat the one its predecessor ended on."""
+    out = ""
+    for piece in pieces:
+        head = piece.lstrip()
+        if out and head[:1] in PUNCTUATION and out.rstrip()[-1:] == head[:1]:
+            piece = head[1:]
+        out += piece
+    return out
 
 
 class Dictation:

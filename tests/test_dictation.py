@@ -303,3 +303,20 @@ def test_holding_the_hotkey_never_finishes_by_itself(mic):
     assert fake.played.wait(10)
     assert not d.ended.wait(0.3) and not stopped.is_set()
     d.cancel()
+
+
+def test_cut_pause_shortens_as_the_open_stretch_grows():
+    assert dictation.cut_pause(dictation.CUT_AFTER_S) == pytest.approx(dictation.CUT_PAUSE_S)
+    middle = dictation.cut_pause(dictation.CUT_AFTER_S + dictation.CUT_SHORTEN_S / 2)
+    assert dictation.CUT_PAUSE_MIN_S < middle < dictation.CUT_PAUSE_S
+    assert dictation.cut_pause(dictation.MAX_OPEN_S) == pytest.approx(dictation.CUT_PAUSE_MIN_S)
+
+
+@pytest.mark.parametrize("pieces, text", [
+    ([" observed Phebe,", ", turning away."], " observed Phebe, turning away."),
+    ([" It is done.", ". Next one."], " It is done. Next one."),
+    ([" Hello,", " world."], " Hello, world."),
+    ([" Wait", ", what?"], " Wait, what?"),  # a comma only after the cut is kept
+])
+def test_pieces_join_without_doubled_punctuation(pieces, text):
+    assert dictation.join(pieces) == text
