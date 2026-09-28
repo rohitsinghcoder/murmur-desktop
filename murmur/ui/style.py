@@ -6,8 +6,9 @@ from pathlib import Path
 from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
 from PySide6.QtGui import QColor, QFontDatabase, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
-# Window background per theme, matching --bg in web/style.css.
+# Window background per theme, matching --bg in web/style.css, and the title bar's text.
 BG = {"dark": "#0d0d0f", "light": "#ffffff"}
+TITLE_TEXT = {"dark": "#ededee", "light": "#18181b"}
 FONTS = Path(__file__).resolve().parent / "web" / "fonts"
 
 # The logo: five bars of a voice waveform, shaped like an M, on a charcoal tile. The middle bar
@@ -86,15 +87,46 @@ def system_theme() -> str:
     return "light" if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Light else "dark"
 
 
-def title_bar(widget, theme: str):
-    """Window frame on Windows 10/11 in the theme, blended with the window background."""
+def title_bar(widget, theme: str, towards: str | None = None, amount=0.0):
+    """Window frame on Windows 10/11 in the theme, blended with the window background.
+
+    While the page fades to another theme (`towards`, `amount` 0..1 of the way there), the
+    caption and its text blend between the two in step with it. The window buttons can only be
+    dark or light, so they switch halfway."""
     hwnd = int(widget.winId())
-    dwm = ctypes.windll.dwmapi
-    dark = ctypes.c_int(theme == "dark")
-    dwm.DwmSetWindowAttribute(hwnd, 20, ctypes.byref(dark), ctypes.sizeof(dark))  # immersive dark mode
-    color = QColor(BG[theme])
-    colorref = ctypes.c_int(color.red() | color.green() << 8 | color.blue() << 16)
-    dwm.DwmSetWindowAttribute(hwnd, 35, ctypes.byref(colorref), ctypes.sizeof(colorref))  # caption (Win 11)
+    target = towards or theme
+    dark = (target if amount >= 0.5 else theme) == "dark"
+    if getattr(widget, "_frame_dark", None) != dark:  # setting it repaints the whole frame
+        widget._frame_dark = dark
+        _dwm_set(hwnd, 20, int(dark))  # immersive dark mode
+    _dwm_set(hwnd, 35, _colorref(_mix(BG[theme], BG[target], amount)))  # caption (Win 11)
+    _dwm_set(hwnd, 36, _colorref(_mix(TITLE_TEXT[theme], TITLE_TEXT[target], amount)))  # its text
+
+
+def _dwm_set(hwnd: int, attribute: int, value: int):
+    v = ctypes.c_int(value)
+    ctypes.windll.dwmapi.DwmSetWindowAttribute(hwnd, attribute, ctypes.byref(v), ctypes.sizeof(v))
+
+
+def _mix(a: str, b: str, amount: float) -> QColor:
+    ca, cb = QColor(a), QColor(b)
+    return QColor(*(round(x + (y - x) * amount) for x, y in
+                    zip((ca.red(), ca.green(), ca.blue()), (cb.red(), cb.green(), cb.blue()))))
+
+
+def _colorref(c: QColor) -> int:
+    return c.red() | c.green() << 8 | c.blue() << 16
+
+
+def ease(t: float) -> float:
+    """CSS "ease", cubic-bezier(0.25, 0.1, 0.25, 1): how far along a CSS fade is at time t (0..1)."""
+    def bezier(p1, p2, u):
+        return 3 * (1 - u) ** 2 * u * p1 + 3 * (1 - u) * u * u * p2 + u ** 3
+    lo, hi = 0.0, 1.0
+    for _ in range(30):  # solve bezier_x(u) == t
+        mid = (lo + hi) / 2
+        lo, hi = (mid, hi) if bezier(0.25, 0.25, mid) < t else (lo, mid)
+    return bezier(0.1, 1.0, (lo + hi) / 2)
 
 
 # The tray menu, like the row menu in web/style.css.

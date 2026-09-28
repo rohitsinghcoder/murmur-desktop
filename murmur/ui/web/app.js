@@ -137,7 +137,7 @@ function applyTheme(setting, resolved) {
 // The whole window crossfades from a picture of the old theme to the new one (a view
 // transition), so every part changes together. Easing each element's colours instead left parts
 // that applyState re-renders (keycaps), the scrollbar and placeholders snapping ahead, and
-// repainted so much that it ran at a few frames a second. Murmur switches the title bar halfway.
+// repainted so much that it ran at a few frames a second. Murmur fades the title bar alongside.
 const THEME_MS = 300;  // ::view-transition-*(root) in style.css
 function switchTheme(theme) {
   const root = document.documentElement;
@@ -165,8 +165,8 @@ function switchTheme(theme) {
     const hold = (frames) => requestAnimationFrame(() => {
       if (frames > 1) return hold(frames - 1);
       fade.forEach((a) => a.play());
-      // "ease" is halfway at 30% of the time.
-      Promise.all(fade.map((a) => a.ready)).then(() => setTimeout(shown, THEME_MS * 0.3));
+      // Murmur fades the title bar over the same time, from now.
+      Promise.all(fade.map((a) => a.ready)).then(() => { if (switchTheme.to === theme) bridge.themeFading(THEME_MS); });
     });
     hold(4);
   }, shown);
@@ -797,7 +797,7 @@ function sampleBridge() {
     })),
     setOption(key, value) { options[key] = JSON.parse(value); stateChanged.emit(); },
     setTheme(t) { theme = t; stateChanged.emit(); },
-    themeShown() {},
+    themeShown() {}, themeFading() {},
     setPaused(p) { paused = p; stateChanged.emit(); },
     // A pretend voice for the mic check: a few seconds of quiet, then talking.
     startMicCheck(cb) {
