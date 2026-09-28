@@ -28,7 +28,11 @@ UNUSED_QT = ["QtOpenGL", "QtPositioning", "QtQml", "QtQuick", "QtQuickWidgets"]
 a = Analysis(
     [str(ROOT / "installer" / "launcher.py")],
     pathex=[str(ROOT)],
-    datas=[(str(ROOT / "murmur" / "ui" / "web"), "murmur/ui/web")],
+    # Next to the murmur package, where the code finds them (Path(__file__) resolves inside
+    # _internal): ui/web for the window, assets/ for sounds.py (start/stop.wav) and startup.py
+    # (murmur.ico for the Startup shortcut Settings makes).
+    datas=[(str(ROOT / "murmur" / "ui" / "web"), "murmur/ui/web"),
+           (str(ROOT / "assets"), "assets")],
     hiddenimports=collect_submodules("comtypes.gen"),
     excludes=["tkinter", "pytest"] + ([f"PySide6.{m}" for m in UNUSED_QT] if TRIM else []),
 )

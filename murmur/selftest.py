@@ -163,6 +163,16 @@ def run(out: Path) -> dict:
           wrappers=getattr(uia, "__file__", None) if uia else None)
     check("spacing", spacing.needs_space("How", "o.") and not spacing.needs_space("How", "( "))
 
+    # The start/stop sounds (Qt Multimedia and assets/*.wav), loaded but not played.
+    from PySide6.QtMultimedia import QSoundEffect
+    from . import sounds
+    effects = sounds.Sounds()
+    effects.set_enabled(True)
+    _wait(qt, lambda: all(e.status() in (QSoundEffect.Ready, QSoundEffect.Error)
+                          for e in effects._effects.values()), 15)
+    check("sounds", all(e.status() == QSoundEffect.Ready for e in effects._effects.values()),
+          assets=str(sounds.ASSETS))
+
     # The window, grabbed once the page has shown the bridge's state.
     _wait(qt, lambda: page_loaded, 60)
     _wait(qt, lambda: False, 1.0)  # the page renders the latest state

@@ -66,8 +66,12 @@ Name: startup; Description: "Start Murmur when Windows starts (in the tray)"
 [InstallDelete]
 ; A clean runtime folder on updates, so files an older version had don't linger.
 Type: filesandordirs; Name: "{app}\_internal"
-; The Startup shortcut is kept only while the task is chosen (it may also be setup.bat's).
-Type: files; Name: "{userstartup}\Murmur.lnk"; Tasks: not startup
+; (An existing Startup shortcut is left alone when the task isn't chosen: it's also Murmur's
+; "Start with Windows" setting, murmur/startup.py, which the user may have turned on since.)
+
+[UninstallDelete]
+; The Startup shortcut, also when Murmur's own setting made it rather than this installer.
+Type: files; Name: "{userstartup}\Murmur.lnk"
 
 [Files]
 Source: "{#SourceDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
