@@ -138,13 +138,11 @@ def run(out: Path) -> dict:
     win.view.page().loadFinished.connect(lambda ok: page_loaded.append((ok, round(_process_age(), 2))))
     app.show_window()
 
-    loaded, failed = [], []
-    app.loaded.connect(loaded.append)
-    app.load_failed.connect(failed.append)
-    t0 = time.perf_counter()
-    _wait(qt, lambda: loaded or failed, TIMEOUT_S)
-    check("model_load", loaded, secs=round(time.perf_counter() - t0, 2),
-          error=failed[0] if failed else None)
+    # The App's status, not its loaded/load_failed signals: the loading thread may have emitted
+    # them before anything here could connect.
+    _wait(qt, lambda: app.status in ("ready", "error"), TIMEOUT_S)
+    loaded = app.status == "ready" and app.dictation is not None
+    check("model_load", loaded, secs=app.load_secs, status=app.status_text)
 
     if loaded:
         import soundfile as sf

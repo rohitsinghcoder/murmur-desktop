@@ -2,7 +2,7 @@
 # Run it through scripts/build_installer.py, which also builds the installer around it.
 #
 # Trimmed of the parts of Qt that Murmur doesn't use (QML, Qt Quick modules, translations, the
-# Chromium dev tools, debug resources, software OpenGL): 620 MB untrimmed -> 355 MB.
+# Chromium dev tools, debug resources, software OpenGL): about 645 MB untrimmed -> 376 MB.
 # Set MURMUR_NO_TRIM=1 to build without trimming, to rule it out when something is missing.
 import os
 import re
