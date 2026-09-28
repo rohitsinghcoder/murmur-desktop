@@ -1,8 +1,9 @@
 """Types text into whatever app has focus.
 
 Pastes through the clipboard (fast, and editors don't auto-complete or auto-close brackets on
-it), then puts the previous clipboard text back. If the clipboard holds something that isn't
-text (an image, copied files), it is left alone and the text is typed as keystrokes instead.
+it), then puts back everything that was on the clipboard: text, an image, copied files, rich
+text. Typing the text as keystrokes is only a last resort: apps like Electron ones take typed
+keystrokes slowly and in bursts, and can drop some.
 """
 import ctypes
 import os
@@ -27,6 +28,12 @@ TOKEN_INTEGRITY_LEVEL = 25  # TOKEN_INFORMATION_CLASS
 
 # Time the target app gets to read the clipboard before the old contents come back.
 RESTORE_AFTER_S = 0.5
+# Clipboard formats that hold GDI handles rather than memory, which a snapshot can't copy.
+# Windows makes CF_BITMAP again from CF_DIB, which is copied. (CF_ENHMETAFILE is copied apart.)
+CF_BITMAP, CF_METAFILEPICT, CF_PALETTE, CF_ENHMETAFILE = 2, 3, 9, 14
+_UNCOPYABLE = {CF_BITMAP, CF_METAFILEPICT, CF_PALETTE, 0x80, 0x82, 0x83, 0x8E}  # + owner/display
+# Past this, the clipboard isn't copied (and the text is typed instead): a huge copied image.
+SNAPSHOT_MAX_BYTES = 256 << 20
 
 for name, args, res in [
     ("OpenClipboard", [wintypes.HWND], wintypes.BOOL),
@@ -36,6 +43,7 @@ for name, args, res in [
     ("SetClipboardData", [wintypes.UINT, wintypes.HANDLE], wintypes.HANDLE),
     ("IsClipboardFormatAvailable", [wintypes.UINT], wintypes.BOOL),
     ("CountClipboardFormats", [], ctypes.c_int),
+    ("EnumClipboardFormats", [wintypes.UINT], wintypes.UINT),
     ("GetClipboardSequenceNumber", [], wintypes.DWORD),
     ("RegisterClipboardFormatW", [wintypes.LPCWSTR], wintypes.UINT),
     ("GetForegroundWindow", [], wintypes.HWND),
@@ -48,6 +56,7 @@ for name, args, res in [
     ("GlobalLock", [wintypes.HGLOBAL], wintypes.LPVOID),
     ("GlobalUnlock", [wintypes.HGLOBAL], wintypes.BOOL),
     ("GlobalFree", [wintypes.HGLOBAL], wintypes.HGLOBAL),
+    ("GlobalSize", [wintypes.HGLOBAL], ctypes.c_size_t),
     ("OpenProcess", [wintypes.DWORD, wintypes.BOOL, wintypes.DWORD], wintypes.HANDLE),
     ("CloseHandle", [wintypes.HANDLE], wintypes.BOOL),
     ("QueryFullProcessImageNameW", [wintypes.HANDLE, wintypes.DWORD, wintypes.LPWSTR, ctypes.POINTER(wintypes.DWORD)], wintypes.BOOL),
@@ -63,6 +72,12 @@ for name, args, res in [
 ]:
     fn = getattr(advapi32, name)
     fn.argtypes, fn.restype = args, res
+
+
+gdi32 = ctypes.WinDLL("gdi32", use_last_error=True)
+gdi32.CopyEnhMetaFileW.argtypes = [wintypes.HANDLE, wintypes.LPCWSTR]
+gdi32.CopyEnhMetaFileW.restype = wintypes.HANDLE
+gdi32.DeleteEnhMetaFile.argtypes = [wintypes.HANDLE]
 
 
 class KEYBDINPUT(ctypes.Structure):
@@ -131,23 +146,70 @@ def _global(data: bytes):
     return h
 
 
-def _read_clipboard() -> tuple[bool, str | None]:
-    """(restorable, text). Restorable when the clipboard is empty or holds text."""
+def _snapshot() -> list[tuple[int, bytes | int]] | None:
+    """Everything on the clipboard, format by format, to put back after pasting: (format, bytes),
+    or (CF_ENHMETAFILE, a copied handle). None if it can't be opened or is too big to copy."""
     if not _open_clipboard():
-        return False, None
+        return None
+    saved: list[tuple[int, bytes | int]] = []
+    total, fmt = 0, 0
     try:
-        if user32.CountClipboardFormats() == 0:
-            return True, None
-        if not user32.IsClipboardFormatAvailable(CF_UNICODETEXT):
-            return False, None
-        h = user32.GetClipboardData(CF_UNICODETEXT)
-        ptr = kernel32.GlobalLock(h)
-        if not ptr:
-            return False, None
-        try:
-            return True, ctypes.wstring_at(ptr)
-        finally:
-            kernel32.GlobalUnlock(h)
+        while fmt := user32.EnumClipboardFormats(fmt):
+            if fmt in _UNCOPYABLE or 0x200 <= fmt <= 0x3FF:  # private and GDI-object ranges
+                continue
+            h = user32.GetClipboardData(fmt)
+            if not h:
+                continue
+            if fmt == CF_ENHMETAFILE:
+                copy = gdi32.CopyEnhMetaFileW(h, None)
+                if copy:
+                    saved.append((fmt, copy))
+                continue
+            size = kernel32.GlobalSize(h)
+            total += size
+            if total > SNAPSHOT_MAX_BYTES:
+                _discard(saved)
+                return None
+            ptr = kernel32.GlobalLock(h)
+            if not ptr:
+                continue
+            try:
+                saved.append((fmt, ctypes.string_at(ptr, size)))
+            finally:
+                kernel32.GlobalUnlock(h)
+        return saved
+    finally:
+        user32.CloseClipboard()
+
+
+def _discard(saved):
+    for fmt, data in saved:
+        if fmt == CF_ENHMETAFILE:
+            gdi32.DeleteEnhMetaFile(data)
+
+
+def _restore(saved) -> bool:
+    """Puts a snapshot back, kept out of clipboard history (it's already in there)."""
+    if not _open_clipboard():
+        _discard(saved)
+        return False
+    try:
+        user32.EmptyClipboard()
+        for fmt, data in saved:
+            if fmt == CF_ENHMETAFILE:
+                if not user32.SetClipboardData(fmt, data):
+                    gdi32.DeleteEnhMetaFile(data)
+                continue
+            if not data:
+                continue
+            h = _global(data)
+            if not user32.SetClipboardData(fmt, h):
+                kernel32.GlobalFree(h)
+        for fmt in _EXCLUDE_FROM_HISTORY:
+            h = _global(b"\0\0\0\0")
+            if not user32.SetClipboardData(fmt, h):
+                kernel32.GlobalFree(h)
+        return True
     finally:
         user32.CloseClipboard()
 
@@ -220,8 +282,10 @@ def paste(text: str, space_before=False) -> str:
         return "copy"
     if space_before:
         text = " " + text
-    restorable, previous = _read_clipboard()
-    if not restorable or not _write_clipboard(text):
+    previous = _snapshot()
+    if previous is None or not _write_clipboard(text):
+        if previous is not None:
+            _restore(previous)  # the failed write may have emptied it
         type_keys(text)
         return "type"
     ours = user32.GetClipboardSequenceNumber()
@@ -231,7 +295,9 @@ def paste(text: str, space_before=False) -> str:
     def restore():
         # Only if nothing else has been copied in the meantime.
         if user32.GetClipboardSequenceNumber() == ours:
-            _write_clipboard(previous)
+            _restore(previous)
+        else:
+            _discard(previous)
 
     t = threading.Timer(RESTORE_AFTER_S, restore)
     t.daemon = True
