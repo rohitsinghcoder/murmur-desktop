@@ -1,0 +1,172 @@
+{
+ "hi_142625.wav": {
+  "lang": "hi",
+  "ref": "घटना में दर्जनों लोगों के घायल होने की सूचना है",
+  "source": "agarwalayushi/hinglish row 142625 (kathbath_hin_252)"
+ },
+ "hi_142626.wav": {
+  "lang": "hi",
+  "ref": "जाहिर है जब सहारा खतरे में है तो उसके उपभोक्ता भी खतरे में होंगे",
+  "source": "agarwalayushi/hinglish row 142626 (kathbath_hin_268)"
+ },
+ "hi_163001.wav": {
+  "lang": "hi",
+  "ref": "प्रोजेक्ट की वजह से लोग बेघर हो रहे हैं और उनका रोजगार छिन रहा है",
+  "source": "agarwalayushi/hinglish row 163001 (kathbath_hin_590)"
+ },
+ "hi_183375.wav": {
+  "lang": "hi",
+  "ref": "हादसे को लेकर आस पास के लोगों ने रोष जताया",
+  "source": "agarwalayushi/hinglish row 183375 (kathbath_hin_1059)"
+ },
+ "hi_203753.wav": {
+  "lang": "hi",
+  "ref": "इस गिरजाघर को पंदरहवीं सदी के अंत में बनाया गया था",
+  "source": "agarwalayushi/hinglish row 203753 (kathbath_hin_1179)"
+ },
+ "hi_40751.wav": {
+  "lang": "hi",
+  "ref": "गुलदान टूट कर चूर-चूर हो गया",
+  "source": "agarwalayushi/hinglish row 40751 (cv17_hi_validated_a34b3f5f)"
+ },
+ "hi_40752.wav": {
+  "lang": "hi",
+  "ref": "तुम्हारा दुशमन कौन है",
+  "source": "agarwalayushi/hinglish row 40752 (cv17_hi_validated_a34b3f5f)"
+ },
+ "hi_285253.wav": {
+  "lang": "hi",
+  "ref": "आपने जो कहा वह वाकई में मुझे बहुत पसंद आया क्योंकि कई बार आविष्कारक या समस्या सुलझाने वाले के तौर पर हम जो दिमाग में पहला विचार आता है उस पर अड जाते हैं और सोचते हैं की यह पूरे मार्केट को बदल देगा क्रांति ले आएगा परंतु अक्सर ऐसा होता नहीं है",
+  "source": "agarwalayushi/hinglish row 285253 (nptel_hin_llBYbBjKVko)"
+ },
+ "hinglish_0.wav": {
+  "lang": "hinglish",
+  "ref": "दोस्तों bash में nested और multilevel if statement के spoken tutorial में आपका स्वागत है इस tutorial में हम निम्न के बारे में सीखेंगे",
+  "source": "agarwalayushi/hinglish row 0 (spk_00000002)"
+ },
+ "hinglish_2.wav": {
+  "lang": "hinglish",
+  "ref": "यदि नहीं तो सम्बंधित tutorials के लिए कृपया हमारी website पर जाएँ इस tutorial के लिए मैं उपयोग कर रही हूँ ubuntu लिनक्स 1204 os और",
+  "source": "agarwalayushi/hinglish row 2 (spk_00000002)"
+ },
+ "hinglish_20375.wav": {
+  "lang": "hinglish",
+  "ref": "variable एक पहचानकर्ता है जो value संदर्भित करता है awk userdefined variables और builtin variables दोनों को supports करता है",
+  "source": "agarwalayushi/hinglish row 20375 (spk_00000447)"
+ },
+ "hinglish_81503.wav": {
+  "lang": "hinglish",
+  "ref": "मेनू बार पर आप कई विकल्प याने ऑप्शंस देख सकते है जैसे के फाइल फाइल एडिट एडिट view view ट्रांसपोर्ट ट्रांसपोर्ट ट्रैक्स ट्रैक्स इत्यादि",
+  "source": "agarwalayushi/hinglish row 81503 (Pj1vCMNNPno)"
+ },
+ "hinglish_305626.wav": {
+  "lang": "hinglish",
+  "ref": "तो यह मॉलिक्यूल जिसको हमने बनाया है देखने में अच्छा लगता है और इसके पास अच्छी लीड समानता हैं इसके पास अच्छी बायोअवेलेबिलिटी है लेकिन यह blood brain barrier को पार कर सकता है तो यह इस विशेष मॉलिक्यूल की एक समस्या है",
+  "source": "agarwalayushi/hinglish row 305626 (nptel_hin_t9_nDt4ATwE)"
+ },
+ "hinglish_468625.wav": {
+  "lang": "hinglish",
+  "ref": "Acceleration phase और dive phase बाद में जुड़ेंगे लेकिन मुख्य रूप से क्रूज़ और लोयटर रहेगा यानी कि मुख्य रूप से रेंज और इंड्योरेन्स",
+  "source": "agarwalayushi/hinglish row 468625 (nptel_hin_uuacCjt71ns)"
+ },
+ "hinglish_570501.wav": {
+  "lang": "hinglish",
+  "ref": "अब अगर यहाँ QPSK के बजाय BPSK सिस्टम होता तो EbNo11 dB मिलता",
+  "source": "agarwalayushi/hinglish row 570501 (nptel_hin_SFcRtZ30rqs)"
+ },
+ "hinglish_326003.wav": {
+  "lang": "hinglish",
+  "ref": "वे गॉस के नियम Gausss law हैं जो आपको बताते हैं कि E का डाइवर्जेंस रो द्वारा विभाजित एप्सिलॉन 0 के बराबर है E कर्ल  जो कि फैराडे का नियम Faraday's law है माइनस d B dt के बराबर है",
+  "source": "agarwalayushi/hinglish row 326003 (nptel_hin_gK7cxNtar1o)"
+ },
+ "en-in_224125.wav": {
+  "lang": "en-in",
+  "ref": "I go to work there each day so that he may learn to help the carpenters for I am no longer young and strong",
+  "source": "agarwalayushi/hinglish row 224125 (kishan_indian_en_1)"
+ },
+ "en-in_244503.wav": {
+  "lang": "en-in",
+  "ref": "Got an opportunity to talk to you",
+  "source": "agarwalayushi/hinglish row 244503 (mkb_en_in__0000000001)"
+ },
+ "en-in_244502.wav": {
+  "lang": "en-in",
+  "ref": "Ok Rajesh ji Kishore ji many many thanks",
+  "source": "agarwalayushi/hinglish row 244502 (mkb_en_in__0000000001)"
+ },
+ "en_libri_0.wav": {
+  "lang": "en",
+  "ref": "MISTER QUILTER IS THE APOSTLE OF THE MIDDLE CLASSES AND WE ARE GLAD TO WELCOME HIS GOSPEL",
+  "source": "hf-internal-testing/librispeech_asr_dummy 0"
+ },
+ "en_libri_3.wav": {
+  "lang": "en",
+  "ref": "HE HAS GRAVE DOUBTS WHETHER SIR FREDERICK LEIGHTON'S WORK IS REALLY GREEK AFTER ALL AND CAN DISCOVER IN IT BUT LITTLE OF ROCKY ITHACA",
+  "source": "hf-internal-testing/librispeech_asr_dummy 3"
+ },
+ "en_libri_7.wav": {
+  "lang": "en",
+  "ref": "PAINTING HE TELLS US IS OF A DIFFERENT QUALITY TO MATHEMATICS AND FINISH IN ART IS ADDING MORE FACT",
+  "source": "hf-internal-testing/librispeech_asr_dummy 7"
+ },
+ "en_libri_12.wav": {
+  "lang": "en",
+  "ref": "ONLY UNFORTUNATELY HIS OWN WORK NEVER DOES GET GOOD",
+  "source": "hf-internal-testing/librispeech_asr_dummy 12"
+ },
+ "en_libri_20.wav": {
+  "lang": "en",
+  "ref": "I BEGGED RUGGEDO LONG AGO TO SEND HIM AWAY BUT HE WOULD NOT DO SO",
+  "source": "hf-internal-testing/librispeech_asr_dummy 20"
+ },
+ "en_libri_30.wav": {
+  "lang": "en",
+  "ref": "THE METAL FOREST IS IN THE GREAT DOMED CAVERN THE LARGEST IN ALL OUR DOMINIONS REPLIED KALIKO",
+  "source": "hf-internal-testing/librispeech_asr_dummy 30"
+ },
+ "en_tts_1.wav": {
+  "lang": "en-tts",
+  "ref": "Hey, can we move the meeting to Thursday at three thirty? I have a doctor's appointment in the morning.",
+  "source": "Windows SAPI TTS (David/Zira)"
+ },
+ "en_tts_2.wav": {
+  "lang": "en-tts",
+  "ref": "The quarterly report is attached. Revenue grew by twelve percent, but costs went up too, so let's discuss it on Monday.",
+  "source": "Windows SAPI TTS (David/Zira)"
+ },
+ "en_tts_3.wav": {
+  "lang": "en-tts",
+  "ref": "Please send me the invoice for five hundred rupees and remind Priya to book the train tickets to Mumbai.",
+  "source": "Windows SAPI TTS (David/Zira)"
+ },
+ "en_tts_4.wav": {
+  "lang": "en-tts",
+  "ref": "I think the new design looks great. Could you make the buttons a little bigger and change the font to something cleaner?",
+  "source": "Windows SAPI TTS (David/Zira)"
+ },
+ "en-in_228000.wav": {
+  "lang": "en-in",
+  "ref": "The festival of Onam is also commencing before Ganesh Chaturthi",
+  "source": "agarwalayushi/hinglish row 228000 (mkb_en_in__0000000001)"
+ },
+ "en-in_232001.wav": {
+  "lang": "en-in",
+  "ref": "Shailesh ji you must have realized after going through this Mann Ki Baat Charter that the list is indeed long",
+  "source": "agarwalayushi/hinglish row 232001 (mkb_en_in__0000000001)"
+ },
+ "en-in_236000.wav": {
+  "lang": "en-in",
+  "ref": "Ah what is your height are you tall",
+  "source": "agarwalayushi/hinglish row 236000 (mkb_en_in__0000000001)"
+ },
+ "en-in_240000.wav": {
+  "lang": "en-in",
+  "ref": "We see how some time ago when India opened her Space Sector...within no time the young generation lapped up the opportunity",
+  "source": "agarwalayushi/hinglish row 240000 (mkb_en_in__0000000001)"
+ },
+ "en-in_248002.wav": {
+  "lang": "en-in",
+  "ref": "On the 21st of this month our Country received very sad news",
+  "source": "agarwalayushi/hinglish row 248002 (mkb_en_in__0000000001)"
+ }
+}
