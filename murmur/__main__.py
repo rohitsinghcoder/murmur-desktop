@@ -86,6 +86,9 @@ class App(QObject):
         self.pill.stop_clicked.connect(self.on_click_stop)
         self.pill.show()
         self.sounds = sounds.Sounds()
+        # With "save_memory" on, the model is unloaded after a while without dictating.
+        self._idle_timer = QTimer(self, singleShot=True, interval=IDLE_UNLOAD_MIN * 60_000,
+                                  timeout=self._idle)
         self.apply_settings()
 
         # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
@@ -94,9 +97,6 @@ class App(QObject):
         # Closed for a while, the window is released to free its memory (MainWindow.release).
         self._release_timer = QTimer(self, singleShot=True, interval=RELEASE_WINDOW_MIN * 60_000,
                                      timeout=self._release_window)
-        # With "save_memory" on, the model is unloaded after a while without dictating.
-        self._idle_timer = QTimer(self, singleShot=True, interval=IDLE_UNLOAD_MIN * 60_000,
-                                  timeout=self._idle)
 
         self.tray = QSystemTrayIcon(style.logo_icon(gray=True))
         menu = QMenu()
