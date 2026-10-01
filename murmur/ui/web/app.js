@@ -106,6 +106,7 @@ function applyState(s) {
   setRadios($('[data-radios="keep_history"]'), s.options.keep_history);
   showMic();
   $$("[data-pairs]").forEach((card) => renderPairs(card, s.options[card.dataset.pairs]));
+  $$("[data-terms]").forEach((card) => renderTerms(card, s.options[card.dataset.terms]));
 }
 
 // Settings saved as they change. Values go to Murmur as JSON.
@@ -544,6 +545,43 @@ function onStartup(error) {
   loadState();
 }
 
+// Settings: vocabulary, a list of words. Adding one that's there already (any case) replaces it,
+// so its spelling can be corrected.
+
+function renderTerms(card, terms) {
+  const list = $("[data-term-list]", card);
+  list.replaceChildren(...terms.map((term, i) => {
+    const chip = document.createElement("div");
+    chip.className = "term";
+    chip.innerHTML = `<span></span><button class="icon-btn" title="Remove">${svg("close", 12)}</button>`;
+    $("span", chip).textContent = term;
+    chip.title = term;
+    $("button", chip).setAttribute("aria-label", `Remove ${term}`);
+    $("button", chip).onclick = () => {
+      const next = terms.filter((_, j) => j !== i);
+      setOption(card.dataset.terms, next);
+      renderTerms(card, next);
+      $("[data-term]", card).focus();
+    };
+    return chip;
+  }));
+  list.hidden = !terms.length;
+}
+
+function wireTerms(card) {
+  const input = $("[data-term]", card);
+  $("[data-term-form]", card).addEventListener("submit", (e) => {
+    e.preventDefault();
+    const term = input.value.trim().replace(/\s+/g, " ");
+    if (!term) { input.focus(); return; }
+    const terms = [...state.options[card.dataset.terms].filter((t) => t.toLowerCase() !== term.toLowerCase()), term];
+    setOption(card.dataset.terms, terms);
+    renderTerms(card, terms);
+    input.value = "";
+    input.focus();
+  });
+}
+
 // Settings: dictionary and snippets, lists of [heard, write] pairs. Adding a phrase that's
 // already there replaces it.
 
@@ -709,6 +747,7 @@ function wire() {
   $("[data-mic]").onclick = () => loadMics(pickMic);
   wireRadios($('[data-radios="keep_history"]'), (v) => setOption("keep_history", v));
   $$("[data-pairs]").forEach(wirePairs);
+  $$("[data-terms]").forEach(wireTerms);
   $("[data-export]").onclick = () => bridge.exportHistory((message) => { if (message) toast(message); });
   $("[data-clear]").onclick = () => confirmClear(true);
   $("[data-clear-cancel]").onclick = () => confirmClear(false);
@@ -782,6 +821,7 @@ function sampleBridge() {
   let theme = "system", startup = false, paused = false;
   const options = {
     remove_fillers: true, digits: true, voice_commands: true, sounds: false, save_memory: false, show_bar: true, microphone: "", onboarded: new URLSearchParams(location.search).has("setup") ? false : true, keep_history: "forever",
+    vocabulary: ["Kubernetes", "Wispr Flow", "Anirudh", "Supabase", "QWebEngine"], learn_fixes: true,
     dictionary: [["sherpa onnx", "sherpa-onnx"], ["rohit", "Rohit"]],
     snippets: [["my email", "rohit@example.com"], ["sign off", "Thanks,\nRohit"]],
   };

@@ -403,6 +403,19 @@ h2 { margin: 0; font-weight: 600; font-size: 17px; line-height: 1.3; letter-spac
 .segmented button:hover { color: var(--text); }
 .segmented button.active { background: var(--seg-active); color: var(--text); box-shadow: var(--seg-shadow); }
 
+/* Vocabulary: words as removable chips, with an add row under them. */
+.term-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 12px 0; border-top: 1px solid var(--line); }
+.term {
+  display: inline-flex; align-items: center; gap: 2px; max-width: 100%; height: 28px; padding: 0 3px 0 10px;
+  border-radius: var(--r-control); border: 1px solid var(--line-2); background: var(--surface-2);
+  color: var(--text); font-size: 13px; font-weight: 500;
+}
+.term span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.term .icon-btn { width: 22px; height: 22px; flex: none; }
+.term-add { display: grid; grid-template-columns: minmax(0, 1fr) 84px; gap: 12px; padding: 14px 0 16px; border-top: 1px solid var(--line); }
+.term-list:not([hidden]) + .term-add { border-top: 0; padding-top: 2px; }
+.term-add .btn { justify-content: center; }
+
 /* Dictionary and snippets: a list of "heard -> write" pairs with an add row under it. */
 .pairs-intro { color: var(--dim); font-size: 13px; padding: 16px 0 12px; max-width: 60ch; }
 .pair-list { border-top: 1px solid var(--line); }

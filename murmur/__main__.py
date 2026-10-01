@@ -17,7 +17,8 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import dictation, engine, history, hotkey, inserter, logfile, mics, pipeline, settings, sounds, spacing
+from . import (dictation, engine, fixes, history, hotkey, inserter, learn, logfile, mics, pipeline, settings,
+               sounds, spacing, vocabulary)
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -56,6 +57,7 @@ class App(QObject):
     hotkey_changed = Signal(list)
     theme_changed = Signal(str)  # the theme in effect: light or dark
     paused_changed = Signal(bool)
+    fix_found = Signal(object)  # a learn.Fix the user made to a dictation (fixes.py)
 
     def __init__(self, qt: QApplication):
         super().__init__()
@@ -79,6 +81,9 @@ class App(QObject):
         self.caret = spacing.CaretReader()
         self._caret_read = (None, 0.0)  # (read in progress, when it started)
         self.last_insert = spacing.LastInsert()
+        # Watches the last dictation for words the user fixes, to learn them (with "learn_fixes").
+        self.fixes = fixes.Watcher(self.caret, self.fix_found.emit)
+        self._fixes_timer = QTimer(self, interval=500, timeout=self._poll_fixes)
 
         self.pill = Pill()
         self.pill.start_clicked.connect(self.on_click_start)
@@ -130,6 +135,7 @@ class App(QObject):
         self.error.connect(self.on_error)
         self.silent.connect(self.on_silent)
         self.auto_stopped.connect(self.on_click_stop)  # as if ■ was clicked
+        self.fix_found.connect(self._learn)
 
         # Hook callbacks must return fast, so they only post to the UI thread.
         self.keys = hotkey.HoldToTalk(
@@ -157,6 +163,7 @@ class App(QObject):
             on_silent=self.silent.emit, on_auto_stop=self.auto_stopped.emit,
             tidy=lambda text: pipeline.process(text, self.settings),
             device=mics.find(self.settings["microphone"]),
+            vocab=vocabulary.Vocabulary(vocabulary.terms(self.settings)),
         )
         self.loaded.emit(time.perf_counter() - t0)
 
@@ -194,6 +201,7 @@ class App(QObject):
         if self.testing_speed or not self.dictation.listen(hands_free):
             return False
         self.target_app = inserter.foreground_app()
+        self.fixes.finish()  # its last look at the previous dictation, before this one is pasted
         self.pill.recording(hands_free)
         self.sounds.start()
         if self.settings["save_memory"]:
@@ -262,7 +270,48 @@ class App(QObject):
         else:
             self.last_insert.record(window, time.monotonic())
             self.pill.done()
+            if window and self.settings["learn_fixes"]:
+                QTimer.singleShot(250, lambda: self._watch_fixes(text, window[0]))
         return how + (" after a space" if space else "")
+
+    # Learning from the user's fixes (fixes.py, learn.py).
+
+    def _watch_fixes(self, text: str, window: int):
+        self.fixes.finish()
+        self.fixes.start(text, window)
+        self._fixes_timer.start()
+
+    def _poll_fixes(self):
+        """Reads the watched text again once the user has typed in its window and paused; a last
+        time when they've left it or the watch is up."""
+        now = time.monotonic()
+        focus = inserter.focus_window()
+        if (not self.fixes.active or now - self.fixes.started > fixes.WATCH_S
+                or not focus or focus[0] != self.fixes.window):
+            self.fixes.finish()
+            self._fixes_timer.stop()
+        elif self.keys.typed_at > self.fixes.read_at and now - self.keys.typed_at >= fixes.IDLE_S:
+            self.fixes.check()
+
+    def _learn(self, fix):
+        """A word the user fixed by hand: written their way from now on (learn.learning)."""
+        if not self.settings["learn_fixes"]:
+            return
+        change = learn.learning(self.settings, fix)
+        settings.save(self.settings)  # what learn.learning remembered, even if nothing changes
+        if change is None:
+            return
+        option, value, undo_value = change
+        self.set_option(option, value)
+        log.info("Learned a fix the user made (%s)", option)
+
+        def undo():
+            self.set_option(option, undo_value(self.settings[option]))
+            learn.reject(self.settings, fix)
+            settings.save(self.settings)
+
+        if self.pill.state not in ("record", "handsfree", "process"):
+            self.pill.show_message(f"Learned “{fix.write}”. Click to undo", ms=6000, on_click=undo)
 
     def on_error(self, message: str):
         log.error("%s", message)
@@ -316,6 +365,7 @@ class App(QObject):
                 self.dictation.preload()  # turned off while unloaded: bring it back now
         self.pill.set_show_idle(self.settings["show_bar"])
         if self.dictation:
+            self.dictation.vocab = vocabulary.Vocabulary(vocabulary.terms(self.settings))
             # A microphone that isn't connected falls back to the default until it's back.
             device = mics.find(self.settings["microphone"])
             if device != self.dictation.device:

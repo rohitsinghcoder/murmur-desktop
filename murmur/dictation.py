@@ -25,7 +25,7 @@ from typing import Callable
 import numpy as np
 import sounddevice as sd
 
-from . import cleanup, engine
+from . import cleanup, engine, vocabulary
 
 log = logging.getLogger(__name__)
 SR = engine.SAMPLE_RATE
@@ -191,9 +191,11 @@ class Dictation:
         on_auto_stop: Callable[[], None] = lambda: None,
         device=None,
         tidy: Callable[[str], str] = cleanup.tidy,
+        vocab: vocabulary.Vocabulary | None = None,
     ):
         self.rec = rec
         self.tidy = tidy
+        self.vocab = vocab  # terms to listen for (vocabulary.py); replaced when settings change
         self.on_levels = on_levels
         self.on_done = on_done
         self.on_error = on_error
@@ -219,7 +221,7 @@ class Dictation:
 
     def transcribe(self, audio: np.ndarray) -> str:
         """Transcribes on the decode thread, so it never runs at the same time as a dictation."""
-        return self.executor.submit(lambda: engine.transcribe(self._model(), audio)).result()
+        return self.executor.submit(lambda: engine.transcribe(self._model(), audio, self.vocab)).result()
 
     @property
     def loaded(self) -> bool:
@@ -346,7 +348,7 @@ class Dictation:
                 log.warning("Couldn't close the microphone", exc_info=True)
 
     def _session(self):
-        session = Session(lambda audio: engine.tokens(self._model(), audio), self.executor)
+        session = Session(lambda audio: engine.tokens(self._model(), audio, self.vocab), self.executor)
         try:
             chunks = self._open_mic()
         except Exception as e:

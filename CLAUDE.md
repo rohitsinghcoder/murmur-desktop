@@ -13,7 +13,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 
 ## Speech model
 - NVIDIA Parakeet TDT 0.6B v2 int8 (offline, not streaming) via sherpa-onnx 1.13.8 on CPU, 4
-  threads, feat_dim 128, model_type nemo_transducer. RTF ~0.085 on a Ryzen 5 4600H. Chosen over the
+  threads, feat_dim 128, model_type nemo_transducer, modified_beam_search (hotwords need it; a
+  greedy recognizer as well would load the model twice). RTF ~0.10 on a Ryzen 5 4600H. Chosen over the
   Android app's Nemotron streaming model: much better punctuation, and streaming split sentences
   at pauses ("like. Be something"). Live text isn't shown on Windows by design.
 - `dictation.Session` hides the latency: background transcription at every 0.3 s pause (used if
@@ -21,6 +22,12 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   shrinks from 0.35 s to 0.15 s as it grows), each transcribed with 2 s context before and 1.5 s
   after, keeping only tokens timestamped inside the piece; `join` drops punctuation heard on
   both sides of a cut.
+- Vocabulary (`vocabulary.py`): Settings > Vocabulary plus the dictionary's write sides become
+  hotwords (score 1.5, per stream, so no reload; `bpe.vocab` is made from tokens.txt). Every
+  decode then runs twice, plain and with hotwords, at the same time (RTF ~0.14 for both), and
+  `merge` takes a hotword swap only where it sounds like what the plain decode heard: hotwords
+  alone turned "colleague" into "Claude". Tested on SAPI-voice clips: jargon 32/50 -> 43/50,
+  no plain sentence changed. Above 1.5, sound-alikes ("cloud" -> "Claude") got through.
 
 ## Layout (`murmur/`)
 - `engine.py`: loads the model; `tokens()` returns (text piece, seconds) pairs.
@@ -28,7 +35,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `cleanup.py`, `numbers.py`: line-for-line ports of `Cleanup.kt`, `Numbers.kt`, plus
   `numbers.tidy_digits` for numbers the model already writes as digits (3.30pm, 500 rupees).
 - `pipeline.process(text, settings)`: what `Dictation(tidy=...)` runs on a transcript: the
-  cleanup steps the switches allow (defaults == `cleanup.tidy`), then `replace.dictionary`,
+  cleanup steps the switches allow (defaults == `cleanup.tidy`), then `replace.dictionary`
+  (vocabulary terms mapped to themselves first, for their exact spelling),
   `commands.apply` ("new line"/"new paragraph"), `replace.snippets` last (typed verbatim).
   New text processing goes in its own module here, never in cleanup/numbers.
 - `settings.py`: keys in DEFAULTS; ones the window may set are in OPTIONS with a validator
@@ -48,6 +56,14 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
   (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
   EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min.
+- Learning fixes (`learn_fixes`): `fixes.Watcher` snapshots the text around a paste (on the
+  CaretReader thread, `CaretReader.run`), reads it again when the user typed in that window and
+  paused 1 s, and a last time on leaving it / next dictation / 2 min. `learn.find_span` finds the
+  pasted text in the read (anchors, no offsets), `learn.corrections` keeps misheard-word fixes
+  (Windows' spell checker, `spell.py`, tells "Rohid" from real words); a fix counts when two
+  reads agree. `learn.learning`: non-word fixes go in the dictionary at once, real-word ones in
+  the vocabulary the second time; undo from the pill rejects for good. Murmur's own window is
+  never read (it answers on the UI thread). VS Code shows text only with screen reader support.
 - `logfile.py`: `~/.murmur/murmur.log` (rotating 1 MB x 2) plus sys/threading excepthooks. Never
   log dictated text or keystrokes.
 - `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,

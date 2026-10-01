@@ -92,6 +92,11 @@ class CaretReader:
         self._pending = self._executor.submit(self._read)
         return self._pending
 
+    def run(self, job) -> Future:
+        """Runs job(uia, mod) on this thread, after any read before it (fixes.py reads there too).
+        `uia` is None if UI Automation is unavailable."""
+        return self._executor.submit(lambda: job(self._uia, getattr(self, "_mod", None)))
+
     @staticmethod
     def result(read: Future | None, started: float) -> str | None:
         """The read's result, waiting until READ_TIMEOUT_S after it started, or None."""

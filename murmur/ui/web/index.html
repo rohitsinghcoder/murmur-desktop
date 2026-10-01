@@ -203,6 +203,23 @@
       </div>
     </div>
 
+    <div class="group-label">Vocabulary</div>
+    <div class="card" data-terms="vocabulary">
+      <div class="pairs-intro">Names, products and jargon you say. Murmur listens for them and writes them exactly like this. Words your dictionary writes are listened for too.</div>
+      <div class="term-list" data-term-list></div>
+      <form class="term-add" data-term-form>
+        <input class="field" data-term placeholder="Add a word or name, like Kubernetes" maxlength="100" spellcheck="false" aria-label="Add a word or name">
+        <button class="btn" type="submit"><span data-icon="plus"></span>Add</button>
+      </form>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Learn from my fixes</div>
+          <div class="row-desc">Correct a word Murmur got wrong and it remembers it, here or in the dictionary. Undo it from the bar.</div>
+        </div>
+        <button class="switch" role="switch" aria-label="Learn from my fixes" data-option="learn_fixes"></button>
+      </div>
+    </div>
+
     <div class="group-label">Dictionary</div>
     <div class="card" data-pairs="dictionary">
       <div class="pairs-intro">Names and words Murmur gets wrong, and how to write them. Case doesn't matter in what it hears.</div>

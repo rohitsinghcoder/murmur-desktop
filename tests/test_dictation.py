@@ -183,7 +183,7 @@ class FakeMic:
 @pytest.fixture
 def mic(monkeypatch):
     """A Dictation on a fake mic and model: (dictation, results, play(audio) -> FakeMic)."""
-    monkeypatch.setattr(dictation.engine, "tokens", lambda rec, audio: fake_decode(audio))
+    monkeypatch.setattr(dictation.engine, "tokens", lambda rec, audio, vocab=None: fake_decode(audio))
     results = {}
     ended = threading.Event()
 
@@ -325,7 +325,7 @@ def test_pieces_join_without_doubled_punctuation(pieces, text):
 def test_an_unloaded_model_loads_again_when_needed(monkeypatch):
     loads = []
     monkeypatch.setattr(dictation.engine, "load", lambda: loads.append(1) or "model")
-    monkeypatch.setattr(dictation.engine, "transcribe", lambda rec, audio: f"{rec} heard {len(audio)}")
+    monkeypatch.setattr(dictation.engine, "transcribe", lambda rec, audio, vocab=None: f"{rec} heard {len(audio)}")
     monkeypatch.setattr(dictation.engine, "unload", lambda: None)
     d = dictation.Dictation("model")
     assert d.transcribe(np.zeros(10, np.float32)) == "model heard 10" and not loads

@@ -36,3 +36,11 @@ def test_round_trip(folder):
     s["dictionary"] = [["rohit", "Rohit"]]
     settings.save(s)
     assert settings.load()["dictionary"] == [["rohit", "Rohit"]]
+
+
+def test_learned_fixes_are_checked_and_not_shared(folder):
+    settings.FILE.write_text('{"learned": {"seen": "oops", "rejected": []}}', encoding="utf-8")
+    s = settings.load()
+    assert s["learned"] == {"seen": {}, "rejected": []}
+    s["learned"]["seen"]["a -> b"] = 1
+    assert settings.DEFAULTS["learned"] == {"seen": {}, "rejected": []}

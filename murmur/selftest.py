@@ -153,6 +153,13 @@ def run(out: Path) -> dict:
         check("transcribe", _words(text) == _words(EXPECTED), text=text,
               audio_secs=round(len(audio) / engine.SAMPLE_RATE, 2), secs=round(took, 3),
               rtf=round(took / (len(audio) / engine.SAMPLE_RATE), 3))
+        # With a vocabulary: decoded twice (vocabulary.py), and the same words.
+        app.set_option("vocabulary", ["Kubernetes", "Wispr Flow", "Phebe"])
+        t0 = time.perf_counter()
+        text = app.dictation.transcribe(audio)
+        took = time.perf_counter() - t0
+        check("vocabulary", _words(text) == _words(EXPECTED), text=text, secs=round(took, 3),
+              rtf=round(took / (len(audio) / engine.SAMPLE_RATE), 3))
 
     # UI Automation (comtypes' generated wrappers), which spacing loads on its own thread.
     app.caret._executor.submit(lambda: None).result(timeout=60)
@@ -160,6 +167,17 @@ def run(out: Path) -> dict:
     check("ui_automation", app.caret._uia is not None,
           wrappers=getattr(uia, "__file__", None) if uia else None)
     check("spacing", spacing.needs_space("How", "o.") and not spacing.needs_space("How", "( "))
+
+    # Windows' spell checker, which learning fixes uses on the same thread (fixes.py).
+    def spell_check(uia, mod):
+        from .spell import Speller
+        speller = Speller()
+        return speller.tag, not speller.is_word("Rohid") and speller.is_word("hello")
+    try:
+        tag, ok = app.caret.run(spell_check).result(timeout=30)
+        check("spell_checker", ok, language=tag)
+    except Exception as e:
+        check("spell_checker", False, error=repr(e))
 
     # The start/stop sounds (Qt Multimedia and assets/*.wav), loaded but not played.
     from PySide6.QtMultimedia import QSoundEffect
