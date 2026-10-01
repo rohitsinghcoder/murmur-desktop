@@ -16,7 +16,8 @@ ICONS = {
     "alert": "warning-circle", "lock": "lock-simple", "keyboard": "keyboard", "github": "github-logo",
     "more": "dots-three", "sun": "sun", "moon": "moon", "monitor": "monitor",
     "export": "export", "plus": "plus", "close": "x", "caret": "caret-up-down", "arrow": "arrow-right",
-    "file": "file-text",
+    "file": "file-text", "words": "book-open-text", "edit": "pencil-simple", "filter": "funnel-simple",
+    "update": "arrow-circle-down", "android": "android-logo",
 }
 OUT = Path(__file__).resolve().parent.parent / "murmur" / "ui" / "web" / "icons.js"
 

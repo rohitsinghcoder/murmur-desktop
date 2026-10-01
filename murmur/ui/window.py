@@ -16,13 +16,19 @@ from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
 from PySide6.QtWebEngineWidgets import QWebEngineView
 from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
-from .. import engine, history, logfile, mics, settings, startup
+from .. import engine, history, learn, logfile, mics, settings, startup
 from .. import hotkey as hk
 from . import frame, style
 
 WEB = Path(__file__).resolve().parent / "web"
 VERSION = "0.3.0"
 REPO = "https://github.com/rohitsinghcoder/murmur-desktop"
+# Pages the window may open in the browser, by name (Bridge.openLink).
+LINKS = {
+    "repo": REPO,
+    "releases": f"{REPO}/releases",
+    "android": "https://github.com/rohitsinghcoder/Murmur",
+}
 DEFAULT_HOTKEY = ["rctrl"]
 log = logging.getLogger("murmur.window")
 
@@ -84,6 +90,7 @@ class Bridge(QObject):
             "resolvedTheme": a.theme,
             "startup": startup.enabled(),
             "options": {k: a.settings[k] for k in settings.OPTIONS},
+            "learnedWords": learn.marked(a.settings),
         })
 
     @Slot(result=str)
@@ -206,9 +213,10 @@ class Bridge(QObject):
     def setPaused(self, paused: bool):
         self.app.set_paused(paused)
 
-    @Slot()
-    def openRepo(self):
-        QDesktopServices.openUrl(QUrl(REPO))
+    @Slot(str)
+    def openLink(self, name: str):
+        if name in LINKS:
+            QDesktopServices.openUrl(QUrl(LINKS[name]))
 
     def _recorded(self, vks):
         if not vks:

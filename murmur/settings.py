@@ -23,6 +23,9 @@ DEFAULTS = {
     "learn_fixes": True,  # learn words the user fixes after a dictation (murmur/fixes.py)
     # Fixes seen, by "heard -> write": real-word ones are learned the second time; undone ones never.
     "learned": {"seen": {}, "rejected": []},
+    # What learned fixes wrote, so the Words page can mark them (learn.marked: those still there).
+    # Kept when one is removed, so undoing that brings its mark back.
+    "learned_words": [],
     "snippets": [],  # [trigger, text] pairs (murmur/replace.py)
     "onboarded": False,  # the first-run checklist on Home was dismissed
 }
@@ -63,8 +66,12 @@ def _learned(v) -> bool:
             and all(isinstance(k, str) for k in v["rejected"]))
 
 
+def _strings(v) -> bool:
+    return isinstance(v, list) and len(v) <= 1000 and all(isinstance(s, str) for s in v)
+
+
 # Settings only Murmur itself changes, checked when read from the file.
-INTERNAL = {"learned": _learned}
+INTERNAL = {"learned": _learned, "learned_words": _strings}
 
 
 def valid(key: str, value) -> bool:

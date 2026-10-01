@@ -29,16 +29,13 @@
   </div>
   <nav>
     <button class="nav-item active" data-nav="home" title="Home (Ctrl+1)"><span data-icon="home"></span>Home</button>
-    <button class="nav-item" data-nav="settings" title="Settings (Ctrl+2)"><span data-icon="settings"></span>Settings</button>
-    <button class="nav-item" data-nav="about" title="About (Ctrl+3)"><span data-icon="info"></span>About</button>
+    <button class="nav-item" data-nav="words" title="Words (Ctrl+2)"><span data-icon="words"></span>Words</button>
+    <button class="nav-item" data-nav="settings" title="Settings (Ctrl+3)"><span data-icon="settings"></span>Settings</button>
+    <button class="nav-item" data-nav="about" title="About (Ctrl+4)"><span data-icon="info"></span>About</button>
   </nav>
   <div class="sidebar-foot">
-    <div class="hint" data-hint>Hold <span data-hotkey></span> in any app to dictate.</div>
     <div class="hint" data-paused-hint hidden>The shortcut and the bar won't dictate until you resume.</div>
-    <div class="foot-row">
-      <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span><button class="link" data-resume hidden>Resume</button></div>
-      <button class="icon-btn theme-toggle" data-theme-toggle></button>
-    </div>
+    <div class="status" data-status><span class="dot"></span><span data-status-text>Loading</span><button class="link" data-resume hidden>Resume</button></div>
   </div>
 </aside>
 
@@ -48,14 +45,6 @@
       <h1 data-greeting>Welcome back</h1>
       <p class="lead">Hold <span data-hotkey></span> in any app and speak. Double-tap it for hands-free, and press <kbd class="key small">Esc</kbd> to cancel.</p>
     </header>
-
-    <div class="stats">
-      <div class="stat"><div class="stat-value" data-stat="words">0</div><div class="stat-label">Words dictated</div></div>
-      <div class="stat"><div class="stat-value" data-stat="wpm">0</div><div class="stat-label">Words per minute</div></div>
-      <div class="stat"><div class="stat-value" data-stat="dictations">0</div><div class="stat-label">Dictations</div></div>
-      <div class="stat"><div class="stat-value" data-stat="streak">0</div><div class="stat-label" data-streak-label>Days in a row</div></div>
-    </div>
-    <p class="stats-note" data-saved hidden><span class="note-icon" data-icon="zap"></span><span data-saved-text></span></p>
 
     <section class="card setup" data-setup hidden>
       <div class="setup-head">
@@ -90,6 +79,14 @@
       </div>
     </section>
 
+    <div class="stats" data-stats>
+      <div class="stat"><div class="stat-value" data-stat="words">0</div><div class="stat-label">Words dictated</div></div>
+      <div class="stat"><div class="stat-value" data-stat="wpm">0</div><div class="stat-label">Words per minute</div></div>
+      <div class="stat"><div class="stat-value" data-stat="dictations">0</div><div class="stat-label">Dictations</div></div>
+      <div class="stat"><div class="stat-value" data-stat="streak">0</div><div class="stat-label" data-streak-label>Days in a row</div></div>
+    </div>
+    <p class="stats-note" data-saved hidden><span class="note-icon" data-icon="zap"></span><span data-saved-text></span></p>
+
     <label class="try">
       <span class="try-icon" data-icon="mic"></span>
       <textarea rows="1" data-try spellcheck="false"></textarea>
@@ -97,13 +94,53 @@
 
     <div class="section-head">
       <h2>History</h2>
-      <div class="search">
-        <span data-icon="search"></span>
-        <input type="text" placeholder="Search" data-search spellcheck="false">
-        <kbd class="key small">Ctrl F</kbd>
+      <div class="history-tools">
+        <button class="btn picker slim" data-app-filter aria-haspopup="menu" hidden><span class="picker-text" data-app-name>All apps</span><span data-icon="caret"></span></button>
+        <div class="search">
+          <span data-icon="search"></span>
+          <input type="text" placeholder="Search" data-search spellcheck="false" aria-label="Search history">
+          <kbd class="key small">Ctrl F</kbd>
+        </div>
       </div>
     </div>
     <div data-history></div>
+  </section>
+
+  <section class="page" data-page="words">
+    <header class="page-head">
+      <h1>Words</h1>
+      <p class="lead">Teach Murmur the names and jargon you use, and phrases that type longer text for you.</p>
+    </header>
+
+    <div class="group-label">Words</div>
+    <div class="card" data-words>
+      <div class="pairs-intro">Names, products and jargon. Murmur listens for them and writes them exactly like this. If it keeps writing one wrong, add what it writes as "heard as". Case doesn't matter in what it hears.</div>
+      <form class="word-add" data-word-form>
+        <input class="field" data-word placeholder="Word or name, like Kubernetes" maxlength="100" spellcheck="false" aria-label="Word or name">
+        <input class="field" data-heard placeholder="Heard as (optional)" maxlength="200" spellcheck="false" aria-label="Heard as, optional" title="What Murmur writes instead. Separate several with commas.">
+        <button class="btn" type="submit"><span data-icon="plus"></span>Add</button>
+      </form>
+      <div class="word-list" data-word-list></div>
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title">Learn from my fixes</div>
+          <div class="row-desc">Correct a word Murmur got wrong and it's added here, marked Learned. Undo it from the bar.</div>
+        </div>
+        <button class="switch" role="switch" aria-label="Learn from my fixes" data-option="learn_fixes"></button>
+      </div>
+    </div>
+
+    <div class="group-label">Snippets</div>
+    <div class="card" data-snippets>
+      <div class="pairs-intro">Say a phrase, get your text: an address, a sign-off, a link. Phrases like "my email" work mid-sentence too; a single word like "email" only works said on its own.</div>
+      <form class="pair-add" data-pair-form>
+        <input class="field" data-from placeholder="When I say" maxlength="200" spellcheck="false" aria-label="When I say">
+        <span class="pair-arrow" data-icon="arrow"></span>
+        <textarea class="field" data-to rows="1" placeholder="Type (Enter for a new line)" maxlength="5000" spellcheck="false" aria-label="Type"></textarea>
+        <button class="btn" type="submit" title="Add (Ctrl+Enter)"><span data-icon="plus"></span>Add</button>
+      </form>
+      <div class="pair-list" data-pair-list></div>
+    </div>
   </section>
 
   <section class="page" data-page="settings">
@@ -159,8 +196,12 @@
         <div class="row-text">
           <div class="row-title">Microphone</div>
           <div class="row-desc" data-mic-desc>System default follows your Windows sound settings.</div>
+          <div class="meter wide" aria-hidden="true" data-test-meter hidden><i></i></div>
         </div>
-        <button class="btn picker" data-mic aria-haspopup="menu"><span class="picker-text" data-mic-name>System default</span><span data-icon="caret"></span></button>
+        <div class="row-control">
+          <button class="btn ghost" data-mic-test>Test</button>
+          <button class="btn picker" data-mic aria-haspopup="menu"><span class="picker-text" data-mic-name>System default</span><span data-icon="caret"></span></button>
+        </div>
       </div>
       <div class="row">
         <div class="row-text">
@@ -172,7 +213,7 @@
       <div class="row">
         <div class="row-text">
           <div class="row-title">Save memory when idle</div>
-          <div class="row-desc">After 10 minutes without dictating, Murmur frees about 700 MB. The next time, you can speak right away; your text takes a few seconds longer.</div>
+          <div class="row-desc">Frees about 700 MB after 10 minutes without dictating. You can still start speaking at once; that first text takes a few seconds longer.</div>
         </div>
         <button class="switch" role="switch" aria-label="Save memory when idle" data-option="save_memory"></button>
       </div>
@@ -201,47 +242,6 @@
         </div>
         <button class="switch" role="switch" aria-label="Voice commands" data-option="voice_commands"></button>
       </div>
-    </div>
-
-    <div class="group-label">Vocabulary</div>
-    <div class="card" data-terms="vocabulary">
-      <div class="pairs-intro">Names, products and jargon you say. Murmur listens for them and writes them exactly like this. Words your dictionary writes are listened for too.</div>
-      <div class="term-list" data-term-list></div>
-      <form class="term-add" data-term-form>
-        <input class="field" data-term placeholder="Add a word or name, like Kubernetes" maxlength="100" spellcheck="false" aria-label="Add a word or name">
-        <button class="btn" type="submit"><span data-icon="plus"></span>Add</button>
-      </form>
-      <div class="row">
-        <div class="row-text">
-          <div class="row-title">Learn from my fixes</div>
-          <div class="row-desc">Correct a word Murmur got wrong and it remembers it, here or in the dictionary. Undo it from the bar.</div>
-        </div>
-        <button class="switch" role="switch" aria-label="Learn from my fixes" data-option="learn_fixes"></button>
-      </div>
-    </div>
-
-    <div class="group-label">Dictionary</div>
-    <div class="card" data-pairs="dictionary">
-      <div class="pairs-intro">Names and words Murmur gets wrong, and how to write them. Case doesn't matter in what it hears.</div>
-      <div class="pair-list" data-pair-list></div>
-      <form class="pair-add" data-pair-form>
-        <input class="field" data-from placeholder="When Murmur hears" maxlength="200" spellcheck="false" aria-label="When Murmur hears">
-        <span class="pair-arrow" data-icon="arrow"></span>
-        <input class="field" data-to placeholder="Write" maxlength="200" spellcheck="false" aria-label="Write">
-        <button class="btn" type="submit"><span data-icon="plus"></span>Add</button>
-      </form>
-    </div>
-
-    <div class="group-label">Snippets</div>
-    <div class="card" data-pairs="snippets">
-      <div class="pairs-intro">Say a phrase, get your text: an address, a sign-off, a link. Phrases like "my email" work mid-sentence too; a single word like "email" only works said on its own.</div>
-      <div class="pair-list" data-pair-list></div>
-      <form class="pair-add" data-pair-form>
-        <input class="field" data-from placeholder="When I say" maxlength="200" spellcheck="false" aria-label="When I say">
-        <span class="pair-arrow" data-icon="arrow"></span>
-        <textarea class="field" data-to rows="1" placeholder="Type (Enter for a new line)" maxlength="5000" spellcheck="false" aria-label="Type"></textarea>
-        <button class="btn" type="submit" title="Add (Ctrl+Enter)"><span data-icon="plus"></span>Add</button>
-      </form>
     </div>
 
     <div class="group-label">Appearance</div>
@@ -321,7 +321,7 @@
         <h1>Murmur</h1>
         <p class="lead" data-version>Private voice typing for Windows</p>
       </div>
-      <button class="btn" data-repo><span data-icon="github"></span>Source code</button>
+      <button class="btn" data-link="repo"><span data-icon="github"></span>Source code</button>
     </header>
 
     <div class="group-label">Speech model</div>
@@ -337,6 +337,17 @@
           <div class="progress" data-speed-progress hidden><i></i></div>
         </div>
         <button class="btn" data-speed><span data-icon="zap"></span>Run</button>
+      </div>
+    </div>
+
+    <div class="group-label">Updates</div>
+    <div class="card">
+      <div class="row">
+        <div class="row-text">
+          <div class="row-title" data-version-title>Version</div>
+          <div class="row-desc">Murmur never checks by itself, so nothing leaves this PC. See the latest version on GitHub.</div>
+        </div>
+        <button class="btn" data-link="releases"><span data-icon="update"></span>Check for updates</button>
       </div>
     </div>
 
@@ -357,11 +368,21 @@
         <button class="btn" data-log><span data-icon="file"></span>Open log</button>
       </div>
     </div>
-    <p class="footnote">Murmur is also on Android: github.com/rohitsinghcoder/Murmur</p>
+    <p class="footnote">Murmur is also on <button class="link" data-link="android">Android</button>.</p>
   </section>
 </main>
 
 <div class="menu" data-menu role="menu" hidden></div>
+<form class="popover" data-fix role="dialog" aria-labelledby="fix-title" hidden>
+  <div class="pop-title" id="fix-title">Fix a word</div>
+  <div class="pop-desc">Murmur will write it your way from now on.</div>
+  <label class="pop-field"><span>Murmur wrote</span><input class="field" data-fix-heard maxlength="200" spellcheck="false"></label>
+  <label class="pop-field"><span>Should be</span><input class="field" data-fix-word maxlength="100" spellcheck="false"></label>
+  <div class="pop-actions">
+    <button type="button" class="btn ghost" data-fix-cancel>Cancel</button>
+    <button type="submit" class="btn"><span data-icon="plus"></span>Add to Words</button>
+  </div>
+</form>
 <div class="toast" data-toast role="status"><span data-toast-icon></span><span data-toast-text></span><button class="toast-action" data-toast-action hidden></button></div>
 <script src="icons.js"></script>
 <script src="app.js"></script>

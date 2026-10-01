@@ -10,6 +10,7 @@ import os
 import sys
 import threading
 import time
+import traceback
 
 import numpy as np
 from PySide6.QtCore import QObject, QTimer, Signal
@@ -169,7 +170,7 @@ class App(QObject):
 
     def _hint(self) -> str:
         if self.paused:
-            return "Murmur is paused. Resume it from the tray icon."
+            return "Murmur is paused. Click to resume"
         return f"Click or hold {hotkey.describe(self.hotkey)} to dictate"
 
     def _set_status(self, status: str, text: str):
@@ -187,13 +188,16 @@ class App(QObject):
         self._set_status("error", "Couldn't load the speech model")
         self._update_tray()
         self.pill.ready(self._hint())
-        self.pill.show_message(f"Couldn't load the speech model: {message}", error=True, ms=8000)
+        # The details are in the log; the bar has room for a line.
+        self.pill.show_message("Couldn't load the speech model.", error=True, ms=10000,
+                               action="Open log", on_click=self.open_log)
 
     # Dictation (UI thread).
 
     def _listen(self, hands_free: bool) -> bool:
         if self.paused:
-            self.pill.show_message(self._hint(), ms=2500)
+            self.pill.show_message("Murmur is paused.", ms=4000, action="Resume",
+                                   on_click=lambda: self.set_paused(False))
             return False
         if self.dictation is None:
             self.pill.show_message("Still loading the speech model…", ms=1500)
@@ -212,6 +216,10 @@ class App(QObject):
         self._listen(hands_free=False)
 
     def on_click_start(self):
+        if self.paused:  # the dimmed bar says "Click to resume"
+            self.set_paused(False)
+            self.pill.show_message("Murmur is on again", ms=1600)
+            return
         if self._listen(hands_free=True):
             self.keys.hands_free()
 
@@ -302,16 +310,17 @@ class App(QObject):
         if change is None:
             return
         option, value, undo_value = change
+        learn.mark(self.settings, fix.write)  # shown as learned on the Words page
         self.set_option(option, value)
         log.info("Learned a fix the user made (%s)", option)
 
         def undo():
-            self.set_option(option, undo_value(self.settings[option]))
+            learn.unmark(self.settings, fix.write)
             learn.reject(self.settings, fix)
-            settings.save(self.settings)
+            self.set_option(option, undo_value(self.settings[option]))
 
         if self.pill.state not in ("record", "handsfree", "process"):
-            self.pill.show_message(f"Learned “{fix.write}”. Click to undo", ms=6000, on_click=undo)
+            self.pill.show_message(f"Learned “{fix.write}”", ms=6000, action="Undo", on_click=undo)
 
     def on_error(self, message: str):
         log.error("%s", message)
@@ -321,8 +330,8 @@ class App(QObject):
     def on_silent(self):
         # Usually Windows' microphone privacy setting, or a muted mic. Clicking opens the setting.
         self.keys.reset()
-        self.pill.show_message("Microphone is silent. Check Windows microphone access.", error=True,
-                               ms=7000, on_click=lambda: os.startfile("ms-settings:privacy-microphone"))
+        self.pill.show_message("Microphone is silent.", error=True, ms=7000, action="Check access",
+                               on_click=lambda: os.startfile("ms-settings:privacy-microphone"))
 
     # Settings.
 
@@ -494,9 +503,12 @@ class App(QObject):
             self.on_cancel()
         self.pause_action.setText("Resume Murmur" if paused else "Pause Murmur")
         self._update_tray()
-        self.pill.set_hint(self._hint())
+        self.pill.set_paused(paused, self._hint())
         log.info("Paused" if paused else "Resumed")
         self.paused_changed.emit(paused)
+
+    def open_log(self):
+        os.startfile(logfile.FILE if logfile.FILE.exists() else logfile.FILE.parent)
 
     def window_closed(self):
         self._release_timer.start()
@@ -509,12 +521,34 @@ class App(QObject):
 
     def quit(self):
         log.info("Murmur quitting")
-        self.keys.stop()
+        # Once asked to quit, nothing may keep Murmur running: a half-quit one has no hotkey and
+        # no tray icon, yet holds the single-instance lock, so a new one can't start either.
+        threading.Thread(target=_exit_if_stuck, name="murmur-quit", daemon=True).start()
+        for step in (self.keys.stop, self._stop_dictation, self.tray.hide):
+            try:
+                step()
+            except Exception:
+                log.exception("Couldn't %s while quitting", step.__name__)
+        self.qt.quit()
+
+    def _stop_dictation(self):
         if self.dictation:
             self.dictation.cancel()
             self.dictation.close()
-        self.tray.hide()
-        self.qt.quit()
+
+
+# Seconds Murmur may take to quit before it's ended anyway.
+QUIT_GRACE_S = 4
+
+
+def _exit_if_stuck():
+    """Ends Murmur if quitting hangs, with every thread's stack in the log to show where."""
+    time.sleep(QUIT_GRACE_S)
+    stacks = "\n".join(f"Thread {threading._active.get(tid, tid)}:\n{''.join(traceback.format_stack(frame))}"
+                       for tid, frame in sys._current_frames().items())
+    log.error("Still running %d s after quitting; ending it. Threads:\n%s", QUIT_GRACE_S, stacks)
+    logging.shutdown()
+    os._exit(1)
 
 
 def main():
@@ -551,7 +585,13 @@ def main():
 
     if "--background" not in sys.argv:
         app.show_window()
-    sys.exit(qt.exec())
+    code = qt.exec()
+    log.info("Murmur stopped")
+    # Straight out: Python's exit would wait for worker threads (decoder, UI Automation, audio),
+    # and one stuck in another app's UI Automation would keep Murmur alive. Everything worth
+    # keeping (settings, history) is already written.
+    logging.shutdown()
+    os._exit(code)
 
 
 if __name__ == "__main__":

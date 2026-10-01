@@ -272,3 +272,15 @@ def test_seen_once_fixes_are_forgotten_oldest_first():
     learn.learning(s, Fix("Jason", "JSON", False, 0.8))
     assert len(s["learned"]["seen"]) == learn.MAX_REMEMBERED
     assert "w0 -> W0" not in s["learned"]["seen"] and "jason -> JSON" in s["learned"]["seen"]
+
+
+def test_learned_words_are_marked_until_removed():
+    s = fresh(vocabulary=["JSON"], dictionary=[["rohid", "Rohit"]])
+    learn.mark(s, "Rohit")
+    learn.mark(s, "JSON")
+    learn.mark(s, "Rohit")  # once, however often it's learned
+    assert learn.marked(s) == ["JSON", "Rohit"]
+    s["dictionary"] = []
+    assert learn.marked(s) == ["JSON"]  # the user removed it
+    learn.unmark(s, "JSON")
+    assert learn.marked(s) == []

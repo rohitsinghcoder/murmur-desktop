@@ -263,6 +263,23 @@ def reject(settings: dict, fix: Fix):
     memory["rejected"] = (memory["rejected"] + [_key(fix)])[-MAX_REMEMBERED:]
 
 
+# What learned fixes wrote, for the Words page to mark as learned.
+
+def mark(settings: dict, write: str):
+    words = [w for w in settings.get("learned_words", []) if w != write] + [write]
+    settings["learned_words"] = words[-MAX_ENTRIES:]
+
+
+def unmark(settings: dict, write: str):
+    settings["learned_words"] = [w for w in settings.get("learned_words", []) if w != write]
+
+
+def marked(settings: dict) -> list[str]:
+    """The learned words still in the vocabulary or dictionary (the user may have removed some)."""
+    present = set(settings.get("vocabulary", ())) | {w for _, w in settings.get("dictionary", ())}
+    return [w for w in settings.get("learned_words", []) if w in present]
+
+
 # ---- Metaphone (Lawrence Philips, 1990), enough for comparing how words sound -------------------
 
 _VOWELS = set("AEIOU")

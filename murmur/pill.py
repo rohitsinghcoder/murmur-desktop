@@ -2,9 +2,11 @@
 
 - Resting: a tiny bar. Hover it for a hint; click it to dictate hands-free.
 - Recording: a black pill with white bars that move with your voice.
-- Hands-free: the same, with ✕ (cancel) and ■ (stop) buttons.
+- Hands-free: the same, with ✕ (cancel) and ■ (stop) buttons and how long it's been going.
 - Processing: the bars turn into a travelling shimmer; once the text is in, a brief check mark,
   then it shrinks back to resting.
+- Paused: the resting bar is dimmed; clicking it resumes.
+- Messages: a line of text, with an accent action ("Undo") when clicking it does something.
 
 Sizes spring between states. The bar never takes focus, so the app you're typing into keeps
 its cursor, and clicks outside the pill go through to whatever is underneath.
@@ -23,6 +25,8 @@ BOTTOM_GAP = 10  # between the pill and the taskbar
 BARS = 9
 BAR_W, BAR_GAP = 3.0, 3.0
 BAR_MIN, BAR_MAX = 3.0, 22.0
+BARS_W = BARS * BAR_W + (BARS - 1) * BAR_GAP
+CLOCK_GAP = 10  # between the bars and the hands-free clock
 # Taller bars in the middle, like a voice waveform.
 PROFILE = [0.5, 0.66, 0.82, 0.95, 1.0, 0.95, 0.82, 0.66, 0.5]
 # Automatic gain: bars are scaled to the loudest recent speech, so a quiet mic still moves them,
@@ -40,19 +44,28 @@ REST_BORDER = QColor(255, 255, 255, 70)
 WHITE = QColor(255, 255, 255)
 HINT = QColor(228, 228, 232)
 ERROR = QColor(255, 138, 128)
+DIM = QColor(150, 150, 158)
 BUTTON = QColor(44, 44, 50)
-STOP = QColor(239, 68, 68)
+BUTTON_HOVER = QColor(62, 62, 70)
+# The same red as the bar drawn in Settings (.pp-stop in web/style.css).
+STOP = QColor(229, 72, 77)
+STOP_HOVER = QColor(236, 102, 106)
+ACCENT = QColor(240, 147, 107)  # web/style.css --toast-accent: the accent, light enough on black
+MESSAGE_HOVER = QColor(30, 30, 35, 245)
+PAUSED_OPACITY = 0.4
 
 SIZES = {
     "rest": (44.0, 8.0),
     "record": (100.0, 34.0),
-    "handsfree": (156.0, 34.0),
+    "handsfree": (196.0, 34.0),
     "process": (100.0, 34.0),
     "done": (56.0, 34.0),
 }
 # The check mark after inserting: drawn on over TICK_DRAW_S, then the bar rests after TICK_MS.
 TICK_DRAW_S = 0.22
 TICK_MS = 750
+MESSAGE_PAD = 30  # around a message's text
+ACTION_GAP = 12  # between a message and its action
 
 
 class Spring:
@@ -87,15 +100,22 @@ class Pill(QWidget):
         self.setMouseTracking(True)
         self.resize(WIN_W, WIN_H)
         self.hint_font = QFont("Geist", 9, QFont.Medium)
+        self.action_font = QFont("Geist", 9, QFont.DemiBold)
+        self.timer_font = QFont("Geist Mono", 8, QFont.Medium)
 
         self.state = "rest"
         self.loading = True
         self.show_idle = True  # False (Settings): no resting bar, only the pill while in use
+        self.paused = False
         self.hover = False
+        self.hover_button = None  # "cancel" or "stop" while hands-free
+        self.hover_message = False
         self.hint = "Loading speech model…"
         self.message = ""
         self.message_error = False
-        self.message_action = None
+        self.message_action = None  # what clicking the message does
+        self.action_label = ""  # and what it says it does, in the accent
+        self.recording_since = 0.0  # perf_counter, for the hands-free clock
         self.level = 0.0  # latest mic level, 0..1
         self.smooth_level = 0.0
         self.w, self.h = Spring(SIZES["rest"][0]), Spring(SIZES["rest"][1])
@@ -129,6 +149,11 @@ class Pill(QWidget):
         self.hint = hint
         self._retarget()
 
+    def set_paused(self, paused: bool, hint: str):
+        self.paused = paused
+        self.hint = hint
+        self._retarget()
+
     def set_show_idle(self, on: bool):
         self.show_idle = on
         self._retarget()
@@ -136,7 +161,8 @@ class Pill(QWidget):
     def recording(self, hands_free=False):
         self._message_timer.stop()
         self.state = "handsfree" if hands_free else "record"
-        self.hover = False
+        self.hover = self.hover_message = False
+        self.recording_since = time.perf_counter()
         self.level = self.smooth_level = 0.0
         self.peak = GAIN_FLOOR
         self._move_to_cursor_screen()
@@ -168,11 +194,14 @@ class Pill(QWidget):
         self._retarget()
         self._message_timer.start(TICK_MS)
 
-    def show_message(self, text: str, error=False, ms=2600, on_click=None):
-        """A short message in the pill. With `on_click`, clicking it does that and dismisses it."""
+    def show_message(self, text: str, error=False, ms=2600, action="", on_click=None):
+        """A short message in the pill. With `on_click`, clicking it does that and dismisses it;
+        `action` names that ("Undo") and is drawn after the text, in the accent."""
         self.state = "message"
         self.message, self.message_error = text, error
         self.message_action = on_click
+        self.action_label = action if on_click else ""
+        self.hover_message = False
         self._move_to_cursor_screen()
         self._retarget()
         self._message_timer.start(ms)
@@ -184,11 +213,20 @@ class Pill(QWidget):
     # Geometry.
 
     def _text_size(self, text: str) -> tuple[float, float]:
-        return QFontMetricsF(self.hint_font).horizontalAdvance(text) + 30, 30.0
+        return QFontMetricsF(self.hint_font).horizontalAdvance(text) + MESSAGE_PAD, 30.0
+
+    def _message_layout(self) -> tuple[str, float, float]:
+        """The message as it fits (cut short with … if it must), its width and its action's."""
+        action_w = QFontMetricsF(self.action_font).horizontalAdvance(self.action_label) if self.action_label else 0.0
+        room = WIN_W - 8 - MESSAGE_PAD - (action_w + ACTION_GAP if action_w else 0)
+        metrics = QFontMetricsF(self.hint_font)
+        text = metrics.elidedText(self.message, Qt.ElideRight, room)
+        return text, metrics.horizontalAdvance(text), action_w
 
     def _target(self) -> tuple[float, float]:
         if self.state == "message":
-            return min(self._text_size(self.message)[0], WIN_W - 8), 32.0
+            _, text_w, action_w = self._message_layout()
+            return text_w + (action_w + ACTION_GAP if action_w else 0) + MESSAGE_PAD, 32.0
         if self.state == "rest" and self.hover:
             return self._text_size(self.hint)
         return SIZES[self.state]
@@ -270,13 +308,23 @@ class Pill(QWidget):
         if self.hover:
             self.hover = False
             self._retarget()
+        self._set_hovers(None, False)
         self.unsetCursor()
+
+    def _set_hovers(self, button, message: bool):
+        if (button, message) != (self.hover_button, self.hover_message):
+            self.hover_button, self.hover_message = button, message
+            self.update()
 
     def mouseMoveEvent(self, event):
         pos = event.position()
-        clickable = (self.state == "rest" and not self.loading) or (
-            self.state == "handsfree" and any(_near(pos, b) for b in self._buttons())
-        ) or (self.state == "message" and self.message_action is not None)
+        button = None
+        if self.state == "handsfree":
+            cancel, stop = self._buttons()
+            button = "cancel" if _near(pos, cancel) else "stop" if _near(pos, stop) else None
+        message = self.state == "message" and self.message_action is not None and self._pill_rect().contains(pos)
+        self._set_hovers(button, message)
+        clickable = (self.state == "rest" and not self.loading) or button is not None or message
         self.setCursor(Qt.PointingHandCursor if clickable else Qt.ArrowCursor)
 
     def mousePressEvent(self, event):
@@ -311,11 +359,14 @@ class Pill(QWidget):
         if resting and self.loading:
             pulse = 0.55 + 0.45 * (0.5 + 0.5 * math.sin(self.t * 4))
             p.setOpacity(pulse)
+        elif resting and self.paused:
+            p.setOpacity(PAUSED_OPACITY)
         elif resting and not self.show_idle:
             # Hidden when idle: fades out as it shrinks back, then the window hides.
             rest_w, record_w = SIZES["rest"][0], SIZES["record"][0]
             p.setOpacity(max(0.0, min(1.0, (r.width() - rest_w) / (record_w - rest_w))))
-        p.fillPath(path, REST_BG if resting else BG)
+        hovered = self.state == "message" and self.hover_message
+        p.fillPath(path, REST_BG if resting else MESSAGE_HOVER if hovered else BG)
         p.setPen(QPen(REST_BORDER if resting else BORDER, 1))
         p.drawPath(path)
         p.setOpacity(1.0)
@@ -329,11 +380,23 @@ class Pill(QWidget):
         p.setOpacity(alpha)
         cx, cy = r.center().x(), r.center().y()
 
-        if self.state == "rest" or self.state == "message":
-            text = self.hint if self.state == "rest" else self.message
+        if self.state == "rest":
             p.setFont(self.hint_font)
-            p.setPen(ERROR if self.state == "message" and self.message_error else HINT)
-            p.drawText(r, Qt.AlignCenter, text)
+            p.setPen(HINT)
+            p.drawText(r, Qt.AlignCenter, self.hint)
+            return
+
+        if self.state == "message":
+            text, text_w, action_w = self._message_layout()
+            x = cx - (text_w + (action_w + ACTION_GAP if action_w else 0)) / 2
+            p.setFont(self.hint_font)
+            p.setPen(ERROR if self.message_error else HINT)
+            p.drawText(QRectF(x, r.top(), text_w + 1, r.height()), Qt.AlignLeft | Qt.AlignVCenter, text)
+            if action_w:
+                p.setFont(self.action_font)
+                p.setPen(WHITE if self.message_error else ACCENT)  # the accent is too near the red
+                p.drawText(QRectF(x + text_w + ACTION_GAP, r.top(), action_w + 1, r.height()),
+                           Qt.AlignLeft | Qt.AlignVCenter, self.action_label)
             return
 
         if self.state == "done":
@@ -355,23 +418,30 @@ class Pill(QWidget):
             p.drawPath(tick)
             return
 
+        x0 = cx - BARS_W / 2
         if self.state == "handsfree":
             cancel, stop = self._buttons()
             p.setPen(Qt.NoPen)
-            p.setBrush(BUTTON)
+            p.setBrush(BUTTON_HOVER if self.hover_button == "cancel" else BUTTON)
             p.drawEllipse(cancel, 11, 11)
             p.setPen(QPen(WHITE, 1.6, Qt.SolidLine, Qt.RoundCap))
             d = 3.6
             p.drawLine(cancel + QPointF(-d, -d), cancel + QPointF(d, d))
             p.drawLine(cancel + QPointF(-d, d), cancel + QPointF(d, -d))
             p.setPen(Qt.NoPen)
-            p.setBrush(STOP)
+            p.setBrush(STOP_HOVER if self.hover_button == "stop" else STOP)
             p.drawEllipse(stop, 11, 11)
             p.setBrush(WHITE)
             p.drawRoundedRect(QRectF(stop.x() - 3.5, stop.y() - 3.5, 7, 7), 1.5, 1.5)
+            # How long it's been going, after the bars; the two are centred together.
+            secs = int(time.perf_counter() - self.recording_since)
+            clock_w = QFontMetricsF(self.timer_font).horizontalAdvance("0:00")
+            x0 = cx - (BARS_W + CLOCK_GAP + clock_w) / 2
+            p.setFont(self.timer_font)
+            p.setPen(DIM)
+            p.drawText(QRectF(x0 + BARS_W + CLOCK_GAP, r.top(), clock_w + 12, r.height()),
+                       Qt.AlignLeft | Qt.AlignVCenter, f"{secs // 60}:{secs % 60:02d}")
 
-        total = BARS * BAR_W + (BARS - 1) * BAR_GAP
-        x0 = cx - total / 2
         p.setPen(Qt.NoPen)
         for i in range(BARS):
             if self.state == "process":

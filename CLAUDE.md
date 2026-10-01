@@ -52,7 +52,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   apps (Claude, VS Code) take typed keys slowly, in bursts, and can drop some.
 - `pill.py`: Wispr-Flow-style bar (no live text by design). Spring-animated; masked so only the
   pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus. A check mark after
-  inserting; messages can take a click action.
+  inserting; a clock in hands-free; dimmed while paused (a click resumes). Messages are elided
+  to fit, and a click action is named (`show_message(action="Undo", on_click=...)`) and drawn
+  in the accent (white on errors). Long details go in the log, not the bar.
 - `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
   (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
   EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min.
@@ -62,15 +64,24 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   pasted text in the read (anchors, no offsets), `learn.corrections` keeps misheard-word fixes
   (Windows' spell checker, `spell.py`, tells "Rohid" from real words); a fix counts when two
   reads agree. `learn.learning`: non-word fixes go in the dictionary at once, real-word ones in
-  the vocabulary the second time; undo from the pill rejects for good. Murmur's own window is
+  the vocabulary the second time; undo from the pill rejects for good. What was learned is kept
+  in settings `learned_words` (not pruned, so undoing a removal keeps the mark; `learn.marked`
+  shows only those still there) for the Words page's Learned tag. Murmur's own window is
   never read (it answers on the UI thread). VS Code shows text only with screen reader support.
 - `logfile.py`: `~/.murmur/murmur.log` (rotating 1 MB x 2) plus sys/threading excepthooks. Never
   log dictated text or keystrokes.
 - `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,
   no build step); `Bridge` is exposed over QWebChannel as `murmur`. `app.js` falls back to sample
   data outside Qt, so `ui/web` can be previewed with `python -m http.server` (`?setup` shows the
-  first-run checklist); extend `sampleBridge()` with every new slot. History entries from the
-  try-it box (app "Murmur") aren't saved.
+  first-run checklist with no history, `?paused` the paused state); extend `sampleBridge()` with
+  every new slot. History entries from the try-it box (app "Murmur") aren't saved.
+- Pages: Home (checklist first, stats hidden until a dictation, history with an app filter and
+  sticky day labels), Words, Settings, About (Ctrl+1..4). A click on a history row doesn't copy
+  (so a word can be selected); right-click > "Fix …" adds it to Words. Words shows the
+  vocabulary and dictionary as one list: a word is a dictionary write side, its "heard as" the
+  pairs writing it; a word alone is a vocabulary term (`putWord` in app.js keeps both settings
+  as they were). Removing words/snippets/history has Undo (toast, Ctrl+Z). Links open only by
+  name (`Bridge.openLink`, `window.LINKS`); Murmur never checks for updates by itself.
 - Design: dark zinc neutrals, one accent (#e07a50, burnt orange), Geist + Geist Mono (bundled),
   Phosphor icons (generated `icons.js`), no gradients/glows, no purple. Logo is an M made of five
   waveform bars, middle bar in the accent; drawn in both `style.logo_image` and `app.js` LOGO.
