@@ -70,7 +70,10 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   snap) but gives the caption to the page; WM_NCHITTEST makes the page's top strip
   (`TITLE_H` 36 px, minus `BUTTONS_W` for its min/max/close buttons, `.titlebar` in style.css)
   the caption. A native caption can't be kept in step with the page's crossfade: its colour
-  reached the screen 0-40 ms apart from the page's, varying with load.
+  reached the screen 0-40 ms apart from the page's, varying with load. Maximised, the page stops
+  2 px short of an auto-hidden taskbar's edge: a page covering the whole screen makes Qt treat
+  the window as full screen and drop WS_CAPTION etc., which kills Windows' min/max/restore
+  animations (and leaves it covering the taskbar on restore).
 - `__main__.py`: `App(QObject)`; background threads only emit signals, UI work happens on the
   Qt thread. Single instance via QLocalServer: a second launch shows the window and exits.
   `--background` starts in the tray (used by the startup shortcut).

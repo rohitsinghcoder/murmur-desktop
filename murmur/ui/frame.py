@@ -5,6 +5,11 @@ switching themes, it always showed up a frame or two early or late. So the page 
 window and Windows only keeps the frame: the shadow, rounded corners, resizing, snapping and
 the system menu (Alt+Space). The top strip of the page, except the page's window buttons, acts
 as the title bar for dragging, double-click to maximise and snapping.
+
+A maximised page must stop short of the screen's edge where an auto-hidden taskbar is: covering
+the whole screen, Qt takes the window for full screen and drops its caption styles, and without
+them Windows doesn't animate minimising, restoring or maximising (and the taskbar couldn't be
+brought up with the mouse).
 """
 import ctypes
 from ctypes import wintypes
@@ -20,11 +25,19 @@ user32.GetClientRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.SetWindowPos.argtypes = [wintypes.HWND, wintypes.HWND, ctypes.c_int, ctypes.c_int,
                                 ctypes.c_int, ctypes.c_int, wintypes.UINT]
 user32.IsZoomed.argtypes = [wintypes.HWND]
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = wintypes.HMONITOR
+shell32 = ctypes.WinDLL("shell32")
+shell32.SHAppBarMessage.restype = ctypes.c_size_t
 
 WM_NCCALCSIZE, WM_NCHITTEST = 0x0083, 0x0084
 HTCAPTION, HTTOP, HTTOPLEFT, HTTOPRIGHT = 2, 12, 13, 14
 SM_CXFRAME, SM_CYFRAME, SM_CXPADDEDBORDER = 32, 33, 92
 SWP_FRAME_ONLY = 0x0002 | 0x0001 | 0x0004 | 0x0010 | 0x0020  # no move/size/z-order/activate; frame changed
+MONITOR_DEFAULTTONEAREST = 2
+ABM_GETAUTOHIDEBAREX = 0x0B
+ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM = range(4)
+AUTOHIDE_GAP = 2  # physical px left free for an auto-hidden taskbar, as Windows Terminal does
 
 # Must match .titlebar in web/style.css (CSS px).
 TITLE_H = 36
@@ -35,11 +48,49 @@ class NCCALCSIZE_PARAMS(ctypes.Structure):
     _fields_ = [("rgrc", wintypes.RECT * 3), ("lppos", ctypes.c_void_p)]
 
 
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT),
+                ("rcWork", wintypes.RECT), ("dwFlags", wintypes.DWORD)]
+
+
+class APPBARDATA(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("hWnd", wintypes.HWND), ("uCallbackMessage", wintypes.UINT),
+                ("uEdge", wintypes.UINT), ("rc", wintypes.RECT), ("lParam", wintypes.LPARAM)]
+
+
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+shell32.SHAppBarMessage.argtypes = [wintypes.DWORD, ctypes.POINTER(APPBARDATA)]
+
+
 def _border(hwnd, horizontal: bool) -> int:
     """The resize border's thickness in physical pixels (outside the window's visible edge)."""
     dpi = user32.GetDpiForWindow(hwnd) or 96
     size = user32.GetSystemMetricsForDpi(SM_CXFRAME if horizontal else SM_CYFRAME, dpi)
     return size + user32.GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi)
+
+
+def _clear_screen_edges(hwnd, rc: wintypes.RECT):
+    """Keeps a maximised page (`rc`) off the edges of a screen it would cover completely."""
+    info = MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+    if not user32.GetMonitorInfoW(user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST), ctypes.byref(info)):
+        return
+    screen = info.rcMonitor
+    if (rc.left, rc.top, rc.right, rc.bottom) != (screen.left, screen.top, screen.right, screen.bottom):
+        return  # a visible taskbar already keeps it off the screen's edge
+    hidden = []
+    for edge in (ABE_LEFT, ABE_TOP, ABE_RIGHT, ABE_BOTTOM):
+        bar = APPBARDATA(cbSize=ctypes.sizeof(APPBARDATA), uEdge=edge, rc=screen)
+        if shell32.SHAppBarMessage(ABM_GETAUTOHIDEBAREX, ctypes.byref(bar)):
+            hidden.append(edge)
+    for edge in hidden or [ABE_BOTTOM]:  # no taskbar on this screen: any edge will do
+        if edge == ABE_LEFT:
+            rc.left += AUTOHIDE_GAP
+        elif edge == ABE_TOP:
+            rc.top += AUTOHIDE_GAP
+        elif edge == ABE_RIGHT:
+            rc.right -= AUTOHIDE_GAP
+        else:
+            rc.bottom -= AUTOHIDE_GAP
 
 
 def refresh(hwnd):
@@ -57,7 +108,11 @@ def handle(msg: wintypes.MSG, scale: float) -> int | None:
         # Windows sets the side and bottom borders; the top keeps no title bar.
         user32.DefWindowProcW(hwnd, msg.message, msg.wParam, msg.lParam)
         # Maximised, the window reaches past the screen by its border; keep the page on screen.
-        params.rgrc[0].top = top + (_border(hwnd, False) if user32.IsZoomed(hwnd) else 0)
+        if user32.IsZoomed(hwnd):
+            params.rgrc[0].top = top + _border(hwnd, False)
+            _clear_screen_edges(hwnd, params.rgrc[0])
+        else:
+            params.rgrc[0].top = top
         return 0
     if msg.message == WM_NCHITTEST:
         pt = wintypes.POINT(ctypes.c_short(msg.lParam & 0xFFFF).value,
