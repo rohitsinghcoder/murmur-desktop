@@ -228,12 +228,36 @@ def test_quiet_room_is_transcribed_as_usual(mic):
     assert text and audio_ms == 2000
 
 
-def test_hands_free_finishes_by_itself_after_a_minute_without_speech(mic):
+def test_pauses_are_heard_in_a_noisy_room():
+    """Room noise above VOICE_DB (a fan): pauses are still found, as quiet relative to the room."""
+    noise_db = dictation.VOICE_DB + 5
+    audio = np.concatenate([speech(6), quiet(0.5), speech(6), quiet(0.5), speech(4)])
+    audio = audio + room(len(audio) / SR, noise_db)
+    with ThreadPoolExecutor(max_workers=1) as ex:
+        s = Session(fake_decode, ex)
+        for i in range(0, len(audio), FRAME):
+            s.add(audio[i:i + FRAME])
+        assert s.noise_db == pytest.approx(noise_db, abs=1.5)
+        assert len(s.pieces) == 2
+        assert s.text().split() == ["w"] * words(16)
+
+
+def test_a_headset_that_gates_its_noise_still_has_its_speech_heard():
+    """Digital silence between words is the quietest frame there is: VOICE_DB decides."""
+    s = Session(None, None)
+    for i in range(0, len(speech(2)), FRAME):
+        s.add(speech(2)[i:i + FRAME])
+    assert s.voice_db == dictation.VOICE_DB
+    assert s.last_voice > 0
+
+
+@pytest.mark.parametrize("noise_db", [-55, dictation.VOICE_DB + 5])
+def test_hands_free_finishes_by_itself_after_a_minute_without_speech(mic, noise_db):
     d, results, play = mic
     stopped = threading.Event()
     d.on_auto_stop = stopped.set
     idle = dictation.HANDS_FREE_IDLE_S
-    play(np.concatenate([speech(2), room(idle + 5)]))
+    play(np.concatenate([speech(2), room(idle + 5, noise_db)]))
     d.listen(hands_free=True)
     assert stopped.wait(10)  # nobody called finish()
     assert d.ended.wait(5)

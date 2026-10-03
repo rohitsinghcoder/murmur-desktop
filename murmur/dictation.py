@@ -34,6 +34,14 @@ TAIL_S = 0.2
 BLOCK = SR // 20  # 50 ms
 # Frames louder than this count as speech. Room noise on a laptop mic is around -52 dB.
 VOICE_DB = -45.0
+# In a noisier room (a fan, air conditioning, the laptop's own fan under load) the room itself
+# passes VOICE_DB, and with no pauses heard nothing is transcribed until the stop: 26 s of
+# speech with noise at -43 dB took 2.5 s after it, against nothing with -47 dB. So speech must
+# also be this much louder than the room, which is the quietest frame of the last NOISE_WINDOW_S
+# (the gaps between words). A headset that gates its noise sends digital silence there, which
+# leaves VOICE_DB in charge.
+NOISE_MARGIN_DB = 10.0
+NOISE_WINDOW_S = 3.0
 # Transcribe in the background after this much quiet following speech.
 SPECULATE_AFTER_S = 0.3
 # Once this much speech is unfinished, finish it at the next pause of CUT_PAUSE_S...
@@ -99,6 +107,17 @@ class Session:
         self.pieces: list[Future] = []  # finished pieces' text, in order
         self.guess: tuple[int, Future] | None = None  # (samples covered, text of the rest)
         self.loudest = -math.inf  # dB of the loudest frame
+        self.recent: deque[float] = deque(maxlen=round(NOISE_WINDOW_S * SR / BLOCK))  # frames' dB
+
+    @property
+    def noise_db(self) -> float:
+        """The room's loudness: the quietest recent frame."""
+        return min(self.recent, default=-math.inf)
+
+    @property
+    def voice_db(self) -> float:
+        """Frames louder than this are speech."""
+        return max(VOICE_DB, self.noise_db + NOISE_MARGIN_DB)
 
     @property
     def silent(self) -> bool:
@@ -127,7 +146,8 @@ class Session:
         self.samples += len(frame)
         loudness = db(frame)
         self.loudest = max(self.loudest, loudness)
-        if loudness > VOICE_DB:
+        self.recent.append(loudness)
+        if loudness > self.voice_db:
             self.last_voice = self.samples
             self.quiet = 0
         else:
@@ -383,4 +403,6 @@ class Dictation:
         t0 = time.perf_counter()
         text = self.tidy(session.text())
         latency_ms = int((time.perf_counter() - t0) * 1000)
+        log.info("Transcribed in %d %s; room noise %.0f dB, speech above %.0f dB", len(session.pieces) + 1,
+                 "piece" if not session.pieces else "pieces", session.noise_db, session.voice_db)
         self.on_done(text, session.samples * 1000 // SR, latency_ms)

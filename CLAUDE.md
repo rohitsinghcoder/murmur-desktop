@@ -21,7 +21,10 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   nothing was said after it), and pieces finished at pauses once 5 s is open (the pause needed
   shrinks from 0.35 s to 0.15 s as it grows), each transcribed with 2 s context before and 1.5 s
   after, keeping only tokens timestamped inside the piece; `join` drops punctuation heard on
-  both sides of a cut.
+  both sides of a cut. A pause is quiet below -45 dB *and* 10 dB above the room (the quietest
+  frame of the last 3 s): with a fixed threshold, noise at -43 dB (a fan) hid every pause and
+  26 s of speech took 2.5 s after the stop. A noise-gated headset's digital silence leaves -45 in
+  charge. Each dictation logs its pieces and room noise (numbers only).
 - Vocabulary (`vocabulary.py`): Settings > Vocabulary plus the dictionary's write sides become
   hotwords (score 1.5, per stream, so no reload; `bpe.vocab` is made from tokens.txt). Every
   decode then runs twice, plain and with hotwords, at the same time (RTF ~0.14 for both), and
