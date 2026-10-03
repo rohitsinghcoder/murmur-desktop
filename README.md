@@ -9,12 +9,14 @@ same text cleanup.
 
 - Hold-to-talk from any app; double-tap Right Ctrl for hands-free, Esc to cancel
 - A small bar at the bottom of the screen shows your voice while you speak
-- Accurate punctuation and capitals, and "um", "uh" and similar filler words removed
+- Accurate punctuation and capitals, with "um", "uh" and stutters ("to to") left out; said in the
+  middle of a sentence, it carries on in lowercase
 - Writes numbers the way you'd type them: "twenty twenty five" → 2025, "fifty percent" → 50%,
   "three thirty pm" → 3:30 PM, "five hundred rupees" → ₹500, "Rs 2,450" → ₹2,450
 - Say "new line" or "new paragraph" to start one
-- Your own dictionary (names and words to spell your way) and snippets (say "my email", get
-  your address)
+- Words: names and jargon Murmur listens for and spells your way ("Kubernetes", "sherpa-onnx"),
+  and it learns from the words you correct after a dictation
+- Snippets: say "my email", get your address
 - Your clipboard is put back after pasting, and dictations stay out of Win+V history
 - History of everything you've dictated, searchable, with a count of the time you've saved
 - Light and dark themes
@@ -103,29 +105,35 @@ open, which shows any errors.
 
 The bar at the bottom of the screen shows what Murmur is doing: it grows into a black pill with
 bars that move with your voice, shimmers while it finishes, and shrinks back when your text is in.
-Hover it for a hint, or click it to start dictating hands-free. If you'd rather not see it
-while you're not dictating, turn off **Show the bar when idle** in Settings.
+Hover it for a hint, or click it to start dictating hands-free. It steps aside while a
+fullscreen video or game is in front; if you'd rather never see it while you're not dictating,
+turn off **Show the bar when idle** in Settings.
 
 Right-click the tray icon for **Paste last dictation** (into the app you were in), **Copy last
 dictation**, your **Recent** dictations, **Pause Murmur** (the shortcut and the bar stop
 dictating until you resume), and **Quit Murmur**.
 
-Open the Murmur window from the Start menu or by clicking the tray icon. **Ctrl+1**, **2** and
-**3** switch between its pages:
+Open the Murmur window from the Start menu or by clicking the tray icon. **Ctrl+1** to **4**
+switch between its pages:
 
 - **Home:** your stats (words, words per minute, streak, and how much faster than typing that
-  is), a box to try dictation, and your history grouped by day. Click a dictation to copy it;
-  right-click it (or use ⋯) to delete it, with a few seconds to undo. Search (Ctrl+F) highlights
-  what matches. Dictations in the try-it box are practice and aren't saved.
+  is), a box to try dictation, and your history grouped by day, with a filter by app. Copy a
+  dictation with its copy button (or Enter); right-click it (or use ⋯) to delete it, with a few
+  seconds to undo, or to fix a word Murmur got wrong. Search (Ctrl+F) highlights what matches.
+  Dictations in the try-it box are practice and aren't saved.
+- **Words:**
+  - *Words:* names, products and jargon. Murmur listens for them and writes them exactly as you
+    gave them ("Kubernetes", "sherpa-onnx"). If it keeps writing one wrong, add what it writes
+    as "heard as". With **Learn from my fixes** on, a word you correct after a dictation is
+    added here by itself, marked Learned (undo it from the bar).
+  - *Snippets:* say a phrase, get your text, even several lines. Phrases of two or more words
+    work mid-sentence ("send it to my email"); a single word only works said on its own.
 - **Settings:**
   - *Shortcut:* push-to-talk on any key or combo, like Right Alt, F9 or Ctrl + Shift + Space.
-  - *General:* start with Windows, which microphone to use, and a soft sound when Murmur starts
-    and stops listening (off by default).
-  - *Text:* remove filler words, write numbers as digits, voice commands; each can be turned off.
-  - *Dictionary:* when Murmur hears a word or phrase, write it your way ("sherpa onnx" →
-    sherpa-onnx). Case doesn't matter, and whole words only.
-  - *Snippets:* say a phrase, get your text, even several lines. They work mid-sentence ("send
-    it to my email"), so pick phrases you wouldn't otherwise say.
+  - *General:* start with Windows, which microphone to use (with a test), a soft sound when
+    Murmur starts and stops listening, and freeing memory when idle.
+  - *Text:* remove filler words and stutters, write numbers as digits, voice commands; each can
+    be turned off.
   - *Appearance:* System, Light or Dark theme, and whether the bar shows when idle.
   - *History:* keep it forever, a year, 30 days, or not at all; export it as Markdown or text;
     or clear it.
@@ -139,19 +147,23 @@ PC, in `%USERPROFILE%\.murmur`.
 
 - `python -m murmur.console`: try dictation in the terminal (Enter to start and stop)
 - `python bench.py [file.wav] [-t 4 6]`: how fast the model runs on your machine
-- `python -m pytest`: tests for the text cleanup, dictionary, snippets, voice commands, history
-  and the hotkey
+- `python -m pytest`: tests for the text cleanup, words, snippets, voice commands, learning from
+  fixes, history, the hotkey and the dictation's piece-by-piece transcription
+- `python -m murmur.selftest`: starts the real app off-screen and checks the model, the window
+  and the bar (also run on installer builds)
 
 ## Good to know
 
 - **Text is pasted, not typed.** Murmur briefly puts the text on the clipboard, presses Ctrl+V
-  and then restores what you had copied (plain text; formatting of copied rich text is dropped).
-  If you had an image or files copied, it types the text as keystrokes instead so they're kept.
+  and then puts back everything you had copied: text, formatting, images, files. Its own text
+  stays out of Win+V clipboard history.
 - **Another dictation app using Ctrl+Win** (like Wispr Flow) doesn't clash; Murmur only uses
-  Right Ctrl.
-- **Your antivirus might ask about it.** Murmur watches for the Right Ctrl key with a
-  system-wide keyboard hook, which some antivirus tools flag. It only reacts to Right Ctrl
-  and Esc; nothing you type is recorded, and nothing is sent over the network.
+  its own shortcut.
+- **Your antivirus might ask about it.** Murmur watches for its shortcut with a system-wide
+  keyboard hook, which some antivirus tools flag. It only reacts to the shortcut and Esc;
+  nothing you type is recorded, and nothing is sent over the network.
+- **Learning from your fixes** reads the text around a dictation for two minutes after pasting
+  it, on your PC only, to spot a word you correct. Turn it off on the Words page.
 
 ## Troubleshooting
 
@@ -159,7 +171,7 @@ PC, in `%USERPROFILE%\.murmur`.
 |---|---|
 | Nothing happens when I hold Right Ctrl | Check the tray icon shows the coloured logo (grey means the model is still loading, or Murmur is paused: resume it from the tray menu). Some keyboards have no Right Ctrl; pick another shortcut in Settings. |
 | The pill says the microphone is unavailable or silent | Windows Settings → Privacy & security → Microphone: turn on **Microphone access** and **Let desktop apps access your microphone**. With more than one mic, pick the right one in Murmur's Settings. |
-| Words come out wrong | Speak at a normal pace, close to the mic; built-in laptop mics in a noisy room struggle. For names and jargon it always gets wrong, add them to the Dictionary in Settings. |
+| Words come out wrong | Speak at a normal pace, close to the mic; built-in laptop mics in a noisy room struggle. For names and jargon it gets wrong, add them on the Words page (and what it writes instead as "heard as"). |
 | Text doesn't appear in one particular app | Some apps block pasting, and apps run as administrator can't be typed into (Murmur copies the text instead). It's still in your history, and in the tray menu under **Copy last dictation**. |
 | `setup.bat` says packages failed | Install Python 3.12, delete `%USERPROFILE%\.murmur\venv`, run `setup.bat` again. |
 | I want to see errors | About → **Open log**, or open `%USERPROFILE%\.murmur\murmur.log`. |
@@ -181,6 +193,9 @@ Everything is in `murmur/`:
 | `inserter.py` | Pastes into the focused app and restores the clipboard |
 | `pill.py` | The floating bar: resting, recording, hands-free and processing states |
 | `pipeline.py` | Everything done to a transcript after the model, following the settings |
+| `vocabulary.py`, `fixes.py`, `learn.py`, `spell.py` | Words listened for while decoding; learning the words you correct |
+| `repeats.py`, `casing.py` | Stutters; capitals (a sentence carried on, a lowercase "i") |
+| `spacing.py` | A space between dictations, from what's before the caret |
 | `ui/` | The window: an HTML interface (`ui/web`) in a Qt WebEngine view (`window.py`), plus the logo (`style.py`) |
 | `cleanup.py`, `numbers.py` | Filler-word removal and number formatting (ports of the Android app's) |
 | `replace.py`, `commands.py` | Dictionary and snippets; "new line" and "new paragraph" |

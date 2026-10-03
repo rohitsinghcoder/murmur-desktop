@@ -1,8 +1,8 @@
 sherpa-onnx==1.13.8
-sounddevice
-numpy
-soundfile
+sounddevice==0.5.6
+numpy==2.4.6
+soundfile==0.14.0
 PySide6-Essentials==6.11.2
 PySide6-Addons==6.11.2
-comtypes
-pytest
+comtypes==1.4.17
+pytest==9.1.1
