@@ -61,7 +61,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   to fit, and a click action is named (`show_message(action="Undo", on_click=...)`) and drawn
   in the accent (white on errors). Long details go in the log, not the bar. The resting bar
   hides while a fullscreen window fills its screen (`App._check_fullscreen` each second,
-  `inserter.fullscreen_monitor`; maximised windows don't count).
+  `inserter.fullscreen_monitor`: no title bar and the whole screen, give or take 2 px; Chrome's
+  fullscreen says it's maximised and stops 1 px short of an auto-hidden taskbar).
 - `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
   (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
   EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min. The same

@@ -394,7 +394,11 @@ user32.MonitorFromWindow.restype = wintypes.HMONITOR
 user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
 user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
 user32.IsZoomed.argtypes = [wintypes.HWND]
+user32.GetWindowLongW.argtypes = [wintypes.HWND, ctypes.c_int]
+user32.GetWindowLongW.restype = ctypes.c_long
 MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTONEAREST = 0, 2
+GWL_STYLE, WS_CAPTION = -16, 0x00C00000
+FULL_SLACK = 2  # pixels
 
 
 def monitor_of(hwnd) -> int:
@@ -414,9 +418,14 @@ def fullscreen_monitor() -> int | None:
 
 
 def filled_monitor(hwnd) -> int | None:
-    """The monitor `hwnd` covers entirely, or None. A maximised window leaves the taskbar out, so
-    it doesn't count (nor when the taskbar hides itself and it does cover the screen)."""
-    if not hwnd or user32.IsZoomed(hwnd):
+    """The monitor `hwnd` covers entirely, or None. A maximised window with a title bar doesn't
+    count, even where an auto-hidden taskbar lets it cover the screen. A fullscreen one has no
+    title bar, but may still say it's maximised (Chrome's does), and stop FULL_SLACK pixels short
+    of an auto-hidden taskbar's edge."""
+    if not hwnd:
+        return None
+    style = user32.GetWindowLongW(hwnd, GWL_STYLE) & 0xFFFFFFFF
+    if user32.IsZoomed(hwnd) and style & WS_CAPTION == WS_CAPTION:
         return None
     monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL)
     rect, info = wintypes.RECT(), MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
@@ -424,7 +433,9 @@ def filled_monitor(hwnd) -> int | None:
             or not user32.GetMonitorInfoW(monitor, ctypes.byref(info))):
         return None
     m = info.rcMonitor
-    covers = rect.left <= m.left and rect.top <= m.top and rect.right >= m.right and rect.bottom >= m.bottom
+    s = FULL_SLACK
+    covers = (rect.left <= m.left + s and rect.top <= m.top + s
+              and rect.right >= m.right - s and rect.bottom >= m.bottom - s)
     return monitor if covers else None
 
 
