@@ -384,6 +384,50 @@ def foreground_app() -> str | None:
         kernel32.CloseHandle(h)
 
 
+class MONITORINFO(ctypes.Structure):
+    _fields_ = [("cbSize", wintypes.DWORD), ("rcMonitor", wintypes.RECT), ("rcWork", wintypes.RECT),
+                ("dwFlags", wintypes.DWORD)]
+
+
+user32.MonitorFromWindow.argtypes = [wintypes.HWND, wintypes.DWORD]
+user32.MonitorFromWindow.restype = wintypes.HMONITOR
+user32.GetMonitorInfoW.argtypes = [wintypes.HMONITOR, ctypes.POINTER(MONITORINFO)]
+user32.GetWindowRect.argtypes = [wintypes.HWND, ctypes.POINTER(wintypes.RECT)]
+user32.IsZoomed.argtypes = [wintypes.HWND]
+MONITOR_DEFAULTTONULL, MONITOR_DEFAULTTONEAREST = 0, 2
+
+
+def monitor_of(hwnd) -> int:
+    return user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST) or 0
+
+
+def fullscreen_monitor() -> int | None:
+    """The monitor the foreground window fills entirely (a video, a game, a slideshow), or None.
+    Not the desktop, nor Murmur's own windows."""
+    hwnd = user32.GetForegroundWindow()
+    if not hwnd or window_pid(hwnd) == os.getpid():
+        return None
+    name = ctypes.create_unicode_buffer(64)
+    if user32.GetClassNameW(hwnd, name, 64) and name.value in _SHELL_CLASSES:
+        return None
+    return filled_monitor(hwnd)
+
+
+def filled_monitor(hwnd) -> int | None:
+    """The monitor `hwnd` covers entirely, or None. A maximised window leaves the taskbar out, so
+    it doesn't count (nor when the taskbar hides itself and it does cover the screen)."""
+    if not hwnd or user32.IsZoomed(hwnd):
+        return None
+    monitor = user32.MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL)
+    rect, info = wintypes.RECT(), MONITORINFO(cbSize=ctypes.sizeof(MONITORINFO))
+    if (not monitor or not user32.GetWindowRect(hwnd, ctypes.byref(rect))
+            or not user32.GetMonitorInfoW(monitor, ctypes.byref(info))):
+        return None
+    m = info.rcMonitor
+    covers = rect.left <= m.left and rect.top <= m.top and rect.right >= m.right and rect.bottom >= m.bottom
+    return monitor if covers else None
+
+
 def _integrity(process) -> int | None:
     """Integrity level of a process handle: 0x2000 normal, 0x3000 administrator."""
     token = wintypes.HANDLE()

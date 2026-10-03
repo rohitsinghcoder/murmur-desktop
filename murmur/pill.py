@@ -6,6 +6,8 @@
 - Processing: the bars turn into a travelling shimmer; once the text is in, a brief check mark,
   then it shrinks back to resting.
 - Paused: the resting bar is dimmed; clicking it resumes.
+- Hidden at rest when turned off in Settings, and while a fullscreen window (a video, a game,
+  a slideshow) is in front of it (`set_covered`); it still appears while dictating.
 - Messages: a line of text, with an accent action ("Undo") when clicking it does something.
 
 Sizes spring between states. The bar never takes focus, so the app you're typing into keeps
@@ -106,6 +108,7 @@ class Pill(QWidget):
         self.state = "rest"
         self.loading = True
         self.show_idle = True  # False (Settings): no resting bar, only the pill while in use
+        self.covered = False  # a fullscreen window (a video, a game) is in front: no resting bar
         self.paused = False
         self.hover = False
         self.hover_button = None  # "cancel" or "stop" while hands-free
@@ -157,6 +160,16 @@ class Pill(QWidget):
     def set_show_idle(self, on: bool):
         self.show_idle = on
         self._retarget()
+
+    def set_covered(self, covered: bool):
+        if covered != self.covered:
+            self.covered = covered
+            self._retarget()
+
+    @property
+    def idle_shown(self) -> bool:
+        """Whether the resting bar is shown (the pill always is while in use)."""
+        return self.show_idle and not self.covered
 
     def recording(self, hands_free=False):
         self._message_timer.stop()
@@ -233,7 +246,7 @@ class Pill(QWidget):
 
     def _retarget(self):
         self.w.target, self.h.target = self._target()
-        if not self.isVisible() and (self.show_idle or self.state != "rest"):
+        if not self.isVisible() and (self.idle_shown or self.state != "rest"):
             self._move_to_cursor_screen()
             self.show()
         self._last = time.perf_counter()
@@ -289,7 +302,7 @@ class Pill(QWidget):
         idle = self.state == "rest" and not self.hover and not self.loading
         if idle and self.w.settled and self.h.settled:
             self.timer.stop()
-            if not self.show_idle:
+            if not self.idle_shown:
                 self.hide()
 
     # Input.
@@ -361,7 +374,7 @@ class Pill(QWidget):
             p.setOpacity(pulse)
         elif resting and self.paused:
             p.setOpacity(PAUSED_OPACITY)
-        elif resting and not self.show_idle:
+        elif resting and not self.idle_shown:
             # Hidden when idle: fades out as it shrinks back, then the window hides.
             rest_w, record_w = SIZES["rest"][0], SIZES["record"][0]
             p.setOpacity(max(0.0, min(1.0, (r.width() - rest_w) / (record_w - rest_w))))

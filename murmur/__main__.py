@@ -35,6 +35,8 @@ RECENT = 5
 RELEASE_WINDOW_MIN = 5
 IDLE_UNLOAD_MIN = 10
 RECENT_CHARS = 48
+# How often the resting bar looks for a fullscreen window (a video, a game) to step aside for.
+FULLSCREEN_CHECK_MS = 1000
 
 
 class App(QObject):
@@ -95,6 +97,7 @@ class App(QObject):
         # With "save_memory" on, the model is unloaded after a while without dictating.
         self._idle_timer = QTimer(self, singleShot=True, interval=IDLE_UNLOAD_MIN * 60_000,
                                   timeout=self._idle)
+        self._fullscreen_timer = QTimer(self, interval=FULLSCREEN_CHECK_MS, timeout=self._check_fullscreen)
         self.apply_settings()
 
         # Created the first time it's opened: the web view costs ~100 MB, and when Murmur starts
@@ -376,6 +379,10 @@ class App(QObject):
             if self.dictation:
                 self.dictation.preload()  # turned off while unloaded: bring it back now
         self.pill.set_show_idle(self.settings["show_bar"])
+        if self.settings["show_bar"]:
+            self._fullscreen_timer.start()
+        else:
+            self._fullscreen_timer.stop()
         if self.dictation:
             self.dictation.vocab = vocabulary.Vocabulary(vocabulary.terms(self.settings))
             # A microphone that isn't connected falls back to the default until it's back.
@@ -446,6 +453,11 @@ class App(QObject):
             self._idle_timer.start()
         else:
             self.dictation.unload()
+
+    def _check_fullscreen(self):
+        """The resting bar hides while a fullscreen window fills its screen."""
+        monitor = inserter.fullscreen_monitor()
+        self.pill.set_covered(monitor is not None and monitor == inserter.monitor_of(int(self.pill.winId())))
 
     def _tray_clicked(self, reason):
         if reason == QSystemTrayIcon.Trigger:

@@ -59,7 +59,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   pill takes the mouse; WindowDoesNotAcceptFocus so clicks don't steal focus. A check mark after
   inserting; a clock in hands-free; dimmed while paused (a click resumes). Messages are elided
   to fit, and a click action is named (`show_message(action="Undo", on_click=...)`) and drawn
-  in the accent (white on errors). Long details go in the log, not the bar.
+  in the accent (white on errors). Long details go in the log, not the bar. The resting bar
+  hides while a fullscreen window fills its screen (`App._check_fullscreen` each second,
+  `inserter.fullscreen_monitor`; maximised windows don't count).
 - `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
   (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
   EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min. The same
