@@ -48,8 +48,10 @@ SMTO_ABORTIFHUNG = 0x2
 
 
 def _nl(text: str) -> str:
-    """Line breaks as \\n: RichEdit reports them as \\r, Edit as \\r\\n."""
-    return text.replace("\r\n", "\n").replace("\r", "\n")
+    """Line breaks as \\n: RichEdit reports them as \\r, Edit as \\r\\n. And plain spaces: web
+    editors keep some as no-break spaces, and may hold zero-width ones."""
+    return (text.replace("\r\n", "\n").replace("\r", "\n").replace("\u00a0", " ")
+            .replace("\u200b", "").replace("\ufeff", ""))
 
 
 class _Watch:
@@ -62,6 +64,7 @@ class _Watch:
         self.edit = None  # a classic Edit control's handle
         self.held = None  # a range over the pasted text
         self.before = self.after = ""
+        self.miss = ""  # why the pasted text wasn't found, for the log (never the text)
         self.seen: set[learn.Fix] = set()  # fixes in the last read
         self.reported: set[tuple[str, str]] = set()
 
@@ -111,6 +114,7 @@ class Watcher:
         try:
             focus = inserter.focus_window()
             if not focus or focus[0] != window:
+                log.info("Not watching the pasted text for fixes: the focus moved on")
                 return
             if _edit_text(focus[1]) is not None:
                 watch.edit = focus[1]
@@ -127,7 +131,7 @@ class Watcher:
                     self._watch = watch
                     return
                 time.sleep(PASTE_WAIT_S)
-            log.info("Couldn't find the pasted text to watch it for fixes")
+            log.info("Couldn't find the pasted text to watch it for fixes: %s", watch.miss)
         except Exception:
             log.info("Couldn't watch the pasted text for fixes", exc_info=True)
 
@@ -178,12 +182,14 @@ class Watcher:
     def _edit_snapshot(self, watch: _Watch) -> bool:
         got = _edit_text(watch.edit)
         if got is None:
+            watch.miss = "the Edit control didn't answer"
             return False
         text, caret = got
         text, start = _nl(text[:caret]), None
         if text.endswith(watch.inserted.strip()):
             start = len(text) - len(watch.inserted.strip())
         if start is None:
+            watch.miss = _mismatch(text, watch.inserted.strip())
             return False
         watch.before = text[max(0, start - CONTEXT):start]
         watch.after = _nl(got[0][caret:caret + CONTEXT])
@@ -193,11 +199,13 @@ class Watcher:
         pattern = _text_pattern(mod, watch.element)
         caret = _caret(mod, watch.element, pattern) if pattern else None
         if caret is None:
+            watch.miss = "the app shows no text" if pattern is None else "the app doesn't say where the caret is"
             return False
         n = len(watch.inserted)
         before, after = _around(mod, caret, n + CONTEXT, CONTEXT, pattern.DocumentRange)
         pasted = watch.inserted.strip()
         if not before.rstrip().endswith(pasted):
+            watch.miss = _mismatch(before.rstrip(), pasted)
             return False
         before = before.rstrip()
         watch.before, watch.after = before[:len(before) - len(pasted)][-CONTEXT:], after
@@ -230,6 +238,15 @@ class Watcher:
             except Exception:
                 pass  # the range went with an edit
         yield _nl(doc.GetText(DOC_CAP))
+
+
+def _mismatch(before: str, pasted: str) -> str:
+    """Why `before` (read before the caret) doesn't end with the pasted text, in lengths only."""
+    if pasted in before:
+        return f"it's there, {len(before) - before.rindex(pasted) - len(pasted)} characters before the caret"
+    words = pasted.split()
+    found = sum(w in before for w in words)
+    return f"read {len(before)} characters before the caret, with {found} of its {len(words)} words"
 
 
 def _text_pattern(mod, element):

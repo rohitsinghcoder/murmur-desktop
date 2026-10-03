@@ -78,6 +78,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   in settings `learned_words` (not pruned, so undoing a removal keeps the mark; `learn.marked`
   shows only those still there) for the Words page's Learned tag. Murmur's own window is
   never read (it answers on the UI thread). VS Code shows text only with screen reader support.
+  In Claude (Electron) the pasted text wasn't found about half the time (Oct 2026); the log now
+  says why (`_mismatch`, lengths only), and no-break/zero-width spaces are normalised (`_nl`).
 - `logfile.py`: `~/.murmur/murmur.log` (rotating 1 MB x 2) plus sys/threading excepthooks. Never
   log dictated text or keystrokes.
 - `ui/window.py`: QWebEngineView (off-the-record profile) showing `ui/web` (plain HTML/CSS/JS,
