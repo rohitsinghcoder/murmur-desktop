@@ -367,9 +367,10 @@ class App(QObject):
 
     def apply_settings(self):
         """Hands the settings to the parts that use them: at start and after every change."""
-        history.keep = self.settings["keep_history"]
-        history.prune()
-        self.history_changed.emit()
+        if self.settings["keep_history"] != history.keep:
+            history.keep = self.settings["keep_history"]
+            history.prune()
+            self.history_changed.emit()
         self.sounds.set_enabled(self.settings["sounds"])
         if self.settings["save_memory"]:
             if not self._idle_timer.isActive():
