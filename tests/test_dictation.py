@@ -191,8 +191,10 @@ def mic(monkeypatch):
         results[kind] = args
         ended.set()
 
+    # A stand-in model: engine.tokens is faked, and None would mean "unloaded", which loads the
+    # real model (not on GitHub's machines).
     d = dictation.Dictation(
-        None, on_done=lambda *a: end("done", *a), on_error=lambda *a: end("error", *a),
+        "model", on_done=lambda *a: end("done", *a), on_error=lambda *a: end("error", *a),
         on_silent=lambda: end("silent"),
     )
     d.ended = ended
