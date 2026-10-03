@@ -38,7 +38,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 - `cleanup.py`, `numbers.py`: line-for-line ports of `Cleanup.kt`, `Numbers.kt`, plus
   `numbers.tidy_digits` for numbers the model already writes as digits (3.30pm, 500 rupees).
 - `pipeline.process(text, settings)`: what `Dictation(tidy=...)` runs on a transcript: the
-  cleanup steps the switches allow (defaults == `cleanup.tidy`), then `replace.dictionary`
+  cleanup steps the switches allow (`cleanup.tidy`'s, with `repeats.remove` (stutters: only
+  small words never doubled on purpose; not "it"/"you"/"this", which end one clause and start the
+  next without the comma) under `remove_fillers`), `casing.capital_i`, then `replace.dictionary`
   (vocabulary terms mapped to themselves first, for their exact spelling),
   `commands.apply` ("new line"/"new paragraph"), `replace.snippets` last (typed verbatim).
   New text processing goes in its own module here, never in cleanup/numbers.
@@ -60,7 +62,10 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   in the accent (white on errors). Long details go in the log, not the bar.
 - `spacing.py`: space before a dictation when the char before the caret isn't whitespace/opener
   (pure `needs_space`). Read via UI Automation (comtypes, MTA thread, 150 ms limit) or
-  EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min.
+  EM_GETSEL/WM_GETTEXT for classic Edit; else same window + no typing within 2 min. The same
+  read decides `casing.continue_sentence`: after a letter, digit, comma or dash the first word
+  loses its capital, only if it's on `casing.COMMON` and not a user word or the start of a name
+  in capitals. History keeps the text as typed. Windows-only so far (not in the Android app).
 - Learning fixes (`learn_fixes`): `fixes.Watcher` snapshots the text around a paste (on the
   CaretReader thread, `CaretReader.run`), reads it again when the user typed in that window and
   paused 1 s, and a last time on leaving it / next dictation / 2 min. `learn.find_span` finds the

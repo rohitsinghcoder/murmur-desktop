@@ -18,8 +18,8 @@ from PySide6.QtGui import QAction, QFont
 from PySide6.QtNetwork import QLocalServer, QLocalSocket
 from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
-from . import (dictation, engine, fixes, history, hotkey, inserter, learn, logfile, mics, pipeline, settings,
-               sounds, spacing, vocabulary)
+from . import (casing, dictation, engine, fixes, history, hotkey, inserter, learn, logfile, mics, pipeline,
+               settings, sounds, spacing, vocabulary)
 from .pill import Pill
 from .ui import style
 from .ui.window import MainWindow  # imports Qt WebEngine, which must happen before QApplication
@@ -256,7 +256,7 @@ class App(QObject):
         self.last_latency_ms = latency_ms
         if text.strip() or "\n" in text:  # just "\n" is "new line" said on its own
             read, self._caret_read = self._caret_read, (None, 0.0)
-            how = self._insert(text, *read)
+            how, text = self._insert(text, *read)
             # Lengths and timings only: never what was said.
             log.info("Dictated %d chars (%d ms audio, ready in %d ms) into %s by %s",
                      len(text), audio_ms, latency_ms, self.target_app, how)
@@ -266,10 +266,13 @@ class App(QObject):
             self.pill.show_message("Didn't catch that", ms=1800)
         self.status_changed.emit()
 
-    def _insert(self, text: str, read, read_started: float) -> str:
-        """Types text into the focused app, after a space if it would run into what's there."""
+    def _insert(self, text: str, read, read_started: float) -> tuple[str, str]:
+        """Types text into the focused app, after a space if it would run into what's there, and
+        without the capital if it carries on a sentence. Returns how, and the text as typed."""
         window = inserter.focus_window()
         before = self.caret.result(read, read_started)
+        if text not in {out for _, out in self.settings["snippets"]}:  # those are typed as written
+            text = casing.continue_sentence(text, before, keep=vocabulary.terms(self.settings))
         follows = self.last_insert.follows(window, self.keys.typed_at, time.monotonic())
         space = spacing.needs_space(text, before, follows)
         how = inserter.paste(text, space_before=space)
@@ -280,7 +283,7 @@ class App(QObject):
             self.pill.done()
             if window and self.settings["learn_fixes"]:
                 QTimer.singleShot(250, lambda: self._watch_fixes(text, window[0]))
-        return how + (" after a space" if space else "")
+        return how + (" after a space" if space else ""), text
 
     # Learning from the user's fixes (fixes.py, learn.py).
 
@@ -493,7 +496,7 @@ class App(QObject):
                 self.pill.show_message("Couldn't get back to the app. Copied instead.", ms=3000)
             return
         QTimer.singleShot(150, lambda: log.info("Pasted the last dictation again by %s",
-                                                self._insert(text, self.caret.start(), time.monotonic())))
+                                                self._insert(text, self.caret.start(), time.monotonic())[0]))
 
     def set_paused(self, paused: bool):
         """Paused, the hotkey and the bar don't dictate (until resumed from the tray)."""
