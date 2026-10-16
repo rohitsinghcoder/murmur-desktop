@@ -13,10 +13,10 @@ import time
 import traceback
 
 import numpy as np
-from PySide6.QtCore import QObject, QTimer, Signal
-from PySide6.QtGui import QAction, QFont
-from PySide6.QtNetwork import QLocalServer, QLocalSocket
-from PySide6.QtWidgets import QApplication, QMenu, QSystemTrayIcon
+from qtpy.QtCore import QObject, QTimer, Signal
+from qtpy.QtGui import QAction, QFont
+from qtpy.QtNetwork import QLocalServer, QLocalSocket
+from qtpy.QtWidgets import QApplication, QMenu, QSystemTrayIcon
 
 from . import (casing, dictation, engine, fixes, history, hotkey, inserter, learn, logfile, mics, pipeline,
                settings, sounds, spacing, vocabulary)

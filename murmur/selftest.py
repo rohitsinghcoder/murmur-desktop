@@ -89,9 +89,9 @@ def run(out: Path) -> dict:
     from . import __main__ as murmur_main
     from . import engine, hotkey, spacing
     from .ui import style, window
-    from PySide6.QtCore import Qt
-    from PySide6.QtGui import QFont, QFontDatabase
-    from PySide6.QtWidgets import QApplication, QSystemTrayIcon
+    from qtpy.QtCore import Qt
+    from qtpy.QtGui import QFont, QFontDatabase
+    from qtpy.QtWidgets import QApplication, QSystemTrayIcon
 
     qt = QApplication.instance() or QApplication([sys.argv[0]])
     qt.setQuitOnLastWindowClosed(False)
@@ -180,13 +180,14 @@ def run(out: Path) -> dict:
         check("spell_checker", False, error=repr(e))
 
     # The start/stop sounds (Qt Multimedia and assets/*.wav), loaded but not played.
-    from PySide6.QtMultimedia import QSoundEffect
+    from qtpy.QtMultimedia import QSoundEffect
     from . import sounds
     effects = sounds.Sounds()
     effects.set_enabled(True)
-    _wait(qt, lambda: all(e.status() in (QSoundEffect.Ready, QSoundEffect.Error)
+    status = QSoundEffect.Status  # PyQt6 has no QSoundEffect.Ready (qtpy doesn't lift its enums)
+    _wait(qt, lambda: all(e.status() in (status.Ready, status.Error)
                           for e in effects._effects.values()), 15)
-    check("sounds", all(e.status() == QSoundEffect.Ready for e in effects._effects.values()),
+    check("sounds", all(e.status() == status.Ready for e in effects._effects.values()),
           assets=str(sounds.ASSETS))
 
     # The window, grabbed once the page has shown the bridge's state.

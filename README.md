@@ -90,6 +90,11 @@ python -m venv .venv
 model (~460 MB) into `models/`. Running with `python` instead of `pythonw` keeps a console
 open, which shows any errors.
 
+Qt comes through [qtpy](https://github.com/spyder-ide/qtpy): `requirements.txt` installs PySide6.
+With native ARM64 Python (Windows on ARM), install `requirements-arm64.txt` instead: it has PyQt6,
+as PySide6 has no Qt WebEngine for ARM64. x64 Python on an ARM PC uses `requirements.txt`. If both
+bindings are installed, qtpy takes PyQt6; set `QT_API=pyside6` to use PySide6.
+
 </details>
 
 ## Using it
@@ -214,3 +219,6 @@ regenerate the app icon, the interface icons and the start and stop sounds.
 - Typeface: [Geist and Geist Mono](https://github.com/vercel/geist-font) (SIL Open Font License,
   see `murmur/ui/web/fonts/OFL.txt`)
 - Icons: [Phosphor Icons](https://phosphoricons.com) (MIT)
+- UI toolkit: [Qt](https://www.qt.io) through [PySide6](https://doc.qt.io/qtforpython-6/) (LGPL),
+  or [PyQt6](https://www.riverbankcomputing.com/software/pyqt/) (GPL) on Windows on ARM, via
+  [qtpy](https://github.com/spyder-ide/qtpy) (MIT)

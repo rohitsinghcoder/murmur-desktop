@@ -14,7 +14,8 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 ## Speech model
 - NVIDIA Parakeet TDT 0.6B v2 int8 (offline, not streaming) via sherpa-onnx 1.13.8 on CPU, 4
   threads, feat_dim 128, model_type nemo_transducer, modified_beam_search (hotwords need it; a
-  greedy recognizer as well would load the model twice). RTF ~0.10 on a Ryzen 5 4600H. Chosen over the
+  greedy recognizer as well would load the model twice). RTF ~0.10 on a Ryzen 5 4600H, ~0.05 native on a Snapdragon X
+  (x64 Python emulated there: ~0.15). Chosen over the
   Android app's Nemotron streaming model: much better punctuation, and streaming split sentences
   at pauses ("like. Be something"). Live text isn't shown on Windows by design.
 - `dictation.Session` hides the latency: background transcription at every 0.3 s pause (used if
@@ -124,11 +125,22 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
   `IDLE_UNLOAD_MIN`; `listen()` preloads it, so it loads (~3.5 s) while you speak.
 
 ## Windows quirks
+- Qt comes through qtpy: PySide6 (LGPL) on x64, PyQt6 on Windows on ARM, whose PySide6 wheels
+  have no Qt WebEngine (up to 6.12; PySide6-WebEngine's win_arm64 wheel is empty). PyQt6 is GPL,
+  so the x64 installer stays PySide6 (`murmur.spec` pins `QT_API=pyside6`). `requirements.txt` is
+  x64 (PySide6), `requirements-arm64.txt` native ARM64 (PyQt6), both on `requirements-base.txt`;
+  setup.bat picks by the venv's `sysconfig.get_platform()`. Not markers: `platform_machine` is the
+  PC's, so x64 Python on ARM would get x64 PyQt6, which Smart App Control blocks (unsigned).
+  Import from `qtpy.*`, never a binding, and stick to API
+  both have: no `QPointF.toTuple()` (PySide-only); enums by qtpy's old short names work in
+  QtCore/QtGui/QtWidgets only (elsewhere scope them: `QSoundEffect.Status.Ready`). Overriding
+  `nativeEvent`, never return `super().nativeEvent(...)`: PyQt6's result is None, and handing that
+  back crashes inside the window procedure (access violation in QtCore.pyd); return `False, 0`.
 - Default hotkey is Right Ctrl because Wispr Flow owns Ctrl+Win.
 - Clipboard watchers lock the clipboard for a moment after a write that carries the
   "exclude from history" formats; `inserter._wait_readable` waits before sending Ctrl+V.
 - `setup.bat` puts its venv in `%USERPROFILE%\.murmur\venv` and history lives in `~/.murmur`:
-  PySide6 nests files 176 chars deep (MAX_PATH), and Microsoft Store Python redirects
+  the Qt wheels nest files 176 chars deep (MAX_PATH), and Microsoft Store Python redirects
   AppData writes into its sandbox. The repo's own `.venv` is for development.
 - Windows PowerShell 5.1 reads files as ANSI: don't round-trip source files through
   Get-Content/Set-Content (it garbles "…" and "₹").

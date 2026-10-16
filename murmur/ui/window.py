@@ -9,12 +9,12 @@ import threading
 from ctypes import wintypes
 from pathlib import Path
 
-from PySide6.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal, Slot
-from PySide6.QtGui import QColor, QDesktopServices, QGuiApplication
-from PySide6.QtWebChannel import QWebChannel
-from PySide6.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
-from PySide6.QtWebEngineWidgets import QWebEngineView
-from PySide6.QtWidgets import QFileDialog, QVBoxLayout, QWidget
+from qtpy.QtCore import QEvent, QObject, Qt, QTimer, QUrl, Signal, Slot
+from qtpy.QtGui import QColor, QDesktopServices, QGuiApplication
+from qtpy.QtWebChannel import QWebChannel
+from qtpy.QtWebEngineCore import QWebEnginePage, QWebEngineProfile
+from qtpy.QtWebEngineWidgets import QWebEngineView
+from qtpy.QtWidgets import QFileDialog, QVBoxLayout, QWidget
 
 from .. import engine, history, learn, logfile, mics, settings, startup
 from .. import hotkey as hk
@@ -283,7 +283,9 @@ class MainWindow(QWidget):
             result = frame.handle(wintypes.MSG.from_address(int(message)), self.devicePixelRatioF())
             if result is not None:
                 return True, result
-        return super().nativeEvent(event_type, message)
+        # Not super().nativeEvent: PyQt6's gives back None for the result, and returning that
+        # crashes Qt. QWidget's does nothing on Windows anyway.
+        return False, 0
 
     def showEvent(self, event):
         super().showEvent(event)

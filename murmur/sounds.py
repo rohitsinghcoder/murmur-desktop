@@ -5,7 +5,7 @@ Multimedia costs nothing for everyone else.
 """
 from pathlib import Path
 
-from PySide6.QtCore import QTimer, QUrl
+from qtpy.QtCore import QTimer, QUrl
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 VOLUME = 0.6
@@ -22,7 +22,7 @@ class Sounds:
     def set_enabled(self, on: bool):
         self.enabled = on
         if on and not self._effects:
-            from PySide6.QtMultimedia import QSoundEffect
+            from qtpy.QtMultimedia import QSoundEffect
             for name in ("start", "stop"):
                 effect = QSoundEffect()
                 effect.setSource(QUrl.fromLocalFile(str(ASSETS / f"{name}.wav")))

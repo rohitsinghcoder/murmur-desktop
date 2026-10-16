@@ -35,7 +35,10 @@ to quit it first.)
 
 ## Building it
 
-Needs Windows 10/11 x64, Python 3.12 (3.11+ works), and Inno Setup 6:
+Needs Windows 10/11, x64 Python 3.12 (3.11+ works), and Inno Setup 6. The installer is the x64
+PySide6 build only (`murmur.spec` stops otherwise); on a Windows on ARM PC, build with an x64
+Python (`winget install -e --id Python.Python.3.12 --architecture x64`, then `py -V:3.12`; the
+ARM64 one is `-V:3.12-arm64`), which runs emulated:
 
 ```bat
 winget install -e --id JRSoftware.InnoSetup --scope user
@@ -143,6 +146,18 @@ the Murmur installer again to download it." (re-running setup repairs it). A nic
 would need a hook in `__main__.py`/the window, which other work owns: on `load_failed` with a
 `FileNotFoundError` when frozen, show a "Download the speech model (460 MB)" action that runs
 `scripts/fetch_model.py`'s logic on a thread with a progress signal, then calls `App.load` again.
+
+### Qt binding: PySide6 only
+
+The code imports Qt through qtpy, which imports whichever binding is installed (PyQt5, PySide2,
+PyQt6, then PySide6), so PyInstaller sees all four. PyInstaller's `hook-qtpy` keeps one, by
+`QT_API` or else in that order: in a venv with PyQt6 as well it kept PyQt6, the build then had no
+Qt at all, and it still "succeeded". So `murmur.spec` sets `QT_API=pyside6`, excludes the other
+three bindings, and stops if no PySide6 ended up in the bundle; the launcher sets `QT_API=pyside6`
+before qtpy loads (a `QT_API` in the user's environment would otherwise send qtpy to the other
+bindings first, or fail on a name it doesn't know). qtpy's optional `PySide6.QtOpenGL` import is
+in a `try`, so trimming that module is still fine. `requirements.txt` (PySide6) is the x64 file;
+native ARM64 Python uses `requirements-arm64.txt` (PyQt6), which the installer never sees.
 
 ### comtypes in the frozen app
 

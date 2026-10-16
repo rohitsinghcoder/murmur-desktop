@@ -17,10 +17,10 @@ import math
 import random
 import time
 
-from PySide6.QtCore import QPointF, QRect, QRectF, Qt, QTimer, Signal
-from PySide6.QtGui import (QColor, QCursor, QFont, QFontMetricsF, QGuiApplication, QPainter,
-                           QPainterPath, QPen, QRegion)
-from PySide6.QtWidgets import QWidget
+from qtpy.QtCore import QPointF, QRect, QRectF, Qt, QTimer, Signal
+from qtpy.QtGui import (QColor, QCursor, QFont, QFontMetricsF, QGuiApplication, QPainter,
+                        QPainterPath, QPen, QRegion)
+from qtpy.QtWidgets import QWidget
 
 WIN_W, WIN_H = 420, 64
 BOTTOM_GAP = 10  # between the pill and the taskbar
@@ -417,7 +417,7 @@ class Pill(QWidget):
             k = min(1.0, (self.t - self.done_at) / TICK_DRAW_S)
             k = 1 - (1 - k) ** 3
             pts = [QPointF(cx - 6.5, cy + 0.5), QPointF(cx - 2, cy + 5), QPointF(cx + 7, cy - 5)]
-            legs = [math.dist(a.toTuple(), b.toTuple()) for a, b in zip(pts, pts[1:])]
+            legs = [math.dist((a.x(), a.y()), (b.x(), b.y())) for a, b in zip(pts, pts[1:])]
             left = k * sum(legs)
             tick = QPainterPath(pts[0])
             for a, b, leg in zip(pts, pts[1:], legs):

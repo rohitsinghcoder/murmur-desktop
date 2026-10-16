@@ -1,8 +1,10 @@
-sherpa-onnx==1.13.8
-sounddevice==0.5.6
-numpy==2.4.6
-soundfile==0.14.0
+# For x64 Python, including x64 Python emulated on an ARM64 PC. Native ARM64 Python
+# (sysconfig.get_platform() == "win-arm64") takes requirements-arm64.txt instead.
+#
+# Qt goes through qtpy: PySide6 (LGPL) here, PyQt6 on ARM64, where PySide6's wheels have no Qt
+# WebEngine. Two files, not environment markers: no marker knows the interpreter's architecture.
+# platform_machine is the PC's (Python 3.12 asks WMI for the CPU), so x64 Python on an ARM64 PC
+# says ARM64 too, and a marker would hand it x64 PyQt6, which Smart App Control blocks (unsigned).
+-r requirements-base.txt
 PySide6-Essentials==6.11.2
 PySide6-Addons==6.11.2
-comtypes==1.4.17
-pytest==9.1.1

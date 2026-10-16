@@ -38,7 +38,11 @@ if not exist "%VENV%\Scripts\python.exe" (
 )
 echo  Installing packages ...
 "%VENV%\Scripts\python.exe" -m pip install --quiet --upgrade pip || goto :fail
-"%VENV%\Scripts\python.exe" -m pip install --quiet -r requirements.txt || goto :pipfail
+rem Native ARM64 Python gets PyQt6 (PySide6 has no Qt WebEngine there); see requirements.txt.
+set "REQS=requirements.txt"
+"%VENV%\Scripts\python.exe" -c "import sys, sysconfig; sys.exit(sysconfig.get_platform() != 'win-arm64')" && set "REQS=requirements-arm64.txt"
+"%VENV%\Scripts\python.exe" -m pip install --quiet -r %REQS% || goto :pipfail
+"%VENV%\Scripts\python.exe" -c "import qtpy.QtWebEngineWidgets" >nul 2>nul || goto :nowebengine
 
 rem --- Speech model ------------------------------------------------------------
 "%VENV%\Scripts\python.exe" scripts\fetch_model.py || goto :fail
@@ -64,6 +68,12 @@ echo.
 echo  Installing packages failed. If you have a very new Python version, some packages may
 echo  not support it yet: install Python 3.12 (winget install -e --id Python.Python.3.12),
 echo  delete the folder %VENV%, and run setup.bat again.
+goto :fail
+
+:nowebengine
+echo.
+echo  Qt WebEngine, which Murmur's window needs, didn't install. Delete the folder
+echo  %VENV% and run setup.bat again.
 :fail
 echo.
 echo  Setup did not finish. See the message above.

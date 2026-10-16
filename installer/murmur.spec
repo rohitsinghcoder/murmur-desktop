@@ -4,8 +4,10 @@
 # Trimmed of the parts of Qt that Murmur doesn't use (QML, Qt Quick modules, translations, the
 # Chromium dev tools, debug resources, software OpenGL): about 645 MB untrimmed -> 376 MB.
 # Set MURMUR_NO_TRIM=1 to build without trimming, to rule it out when something is missing.
+import importlib.util
 import os
 import re
+import sysconfig
 from pathlib import Path
 
 import pefile
@@ -15,6 +17,21 @@ ROOT = Path(SPECPATH).parent
 TRIM = os.environ.get("MURMUR_NO_TRIM") != "1"
 VERSION = re.search(r'^VERSION = "([\d.]+)"', (ROOT / "murmur" / "ui" / "window.py").read_text("utf-8"), re.M)[1]
 
+# The installer is the x64 PySide6 (LGPL) build. ARM64's PySide6 has no Qt WebEngine, and PyQt6
+# (GPL) isn't shipped; an ARM64 PC builds it with x64 Python (py -V:3.12), which runs emulated.
+if sysconfig.get_platform() != "win-amd64":
+    raise SystemExit(f"Build the installer with x64 Python, not {sysconfig.get_platform()} "
+                     "(see docs/INSTALLER.md)")
+if importlib.util.find_spec("PySide6") is None:
+    raise SystemExit("PySide6 isn't installed in the build venv (requirements.txt has it)")
+
+# qtpy imports whichever Qt binding is there, so PyInstaller sees all four. Its hook-qtpy keeps one,
+# by QT_API or else in the order PyQt5, PySide2, PyQt6, PySide6: with PyQt6 installed as well it
+# kept PyQt6, which the excludes below then dropped, leaving no Qt at all. Pick PySide6 for the
+# hook and exclude the others outright.
+os.environ["QT_API"] = "pyside6"
+OTHER_BINDINGS = ["PyQt5", "PySide2", "PyQt6"]
+
 # spacing.py loads UI Automation with comtypes.client.GetModule("UIAutomationCore.dll"), which
 # on first use generates wrapper modules into comtypes.gen. Generate them now, in the build
 # environment, and bundle them: the frozen app then imports them instead of writing any.
@@ -23,7 +40,10 @@ import comtypes.client  # noqa: E402
 comtypes.client.GetModule("UIAutomationCore.dll")
 
 # PySide6 modules Murmur doesn't import. (QtPrintSupport stays: QtWebEngineWidgets imports it.)
-UNUSED_QT = ["QtOpenGL", "QtPositioning", "QtQml", "QtQuick", "QtQuickWidgets"]
+# qtpy tries QtDataVisualization (on import) and QtOpenGLWidgets (qtpy.QtWidgets) and does
+# without them.
+UNUSED_QT = ["QtOpenGL", "QtPositioning", "QtQml", "QtQuick", "QtQuickWidgets",
+             "QtDataVisualization", "QtOpenGLWidgets"]
 
 a = Analysis(
     [str(ROOT / "installer" / "launcher.py")],
@@ -34,8 +54,10 @@ a = Analysis(
     datas=[(str(ROOT / "murmur" / "ui" / "web"), "murmur/ui/web"),
            (str(ROOT / "assets"), "assets")],
     hiddenimports=collect_submodules("comtypes.gen"),
-    excludes=["tkinter", "pytest"] + ([f"PySide6.{m}" for m in UNUSED_QT] if TRIM else []),
+    excludes=["tkinter", "pytest"] + OTHER_BINDINGS + ([f"PySide6.{m}" for m in UNUSED_QT] if TRIM else []),
 )
+if not any(dest.replace("\\", "/").startswith("PySide6/") for dest, _, _ in a.binaries):
+    raise SystemExit("No PySide6 in the bundle: check QT_API and hook-qtpy's warnings above")
 
 
 def unused(dest: str) -> bool:

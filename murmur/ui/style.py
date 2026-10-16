@@ -3,8 +3,8 @@ import ctypes
 import struct
 from pathlib import Path
 
-from PySide6.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
-from PySide6.QtGui import QColor, QFontDatabase, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
+from qtpy.QtCore import QBuffer, QByteArray, QIODevice, QRectF, Qt
+from qtpy.QtGui import QColor, QFontDatabase, QIcon, QImage, QPainter, QPainterPath, QPen, QPixmap
 
 # Window background per theme, matching --bg in web/style.css.
 BG = {"dark": "#0d0d0f", "light": "#ffffff"}
@@ -82,7 +82,7 @@ def write_ico(path, sizes=(16, 20, 24, 32, 40, 48, 64, 128, 256)):
 
 def system_theme() -> str:
     """Windows' app theme (Settings > Personalization > Colors)."""
-    from PySide6.QtGui import QGuiApplication
+    from qtpy.QtGui import QGuiApplication
     return "light" if QGuiApplication.styleHints().colorScheme() == Qt.ColorScheme.Light else "dark"
 
 
