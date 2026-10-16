@@ -6,7 +6,8 @@ built with PyInstaller (the app) and Inno Setup (the installer) by one script.
 ## For users (README section)
 
 > **Install.** Download `MurmurSetup-<version>.exe` from the
-> [Releases](https://github.com/rohitsinghcoder/murmur-desktop/releases) page and run it. It
+> [Releases](https://github.com/rohitsinghcoder/murmur-desktop/releases) page and run it
+> (`MurmurSetup-<version>-arm64.exe` on a Windows on ARM PC, such as a Snapdragon laptop). It
 > installs just for you (no admin prompt), downloads the speech model once (460 MB), adds Murmur
 > to the Start menu, and can start it with Windows. About 1 GB of disk space in all.
 >
@@ -35,15 +36,24 @@ to quit it first.)
 
 ## Building it
 
-Needs Windows 10/11, x64 Python 3.12 (3.11+ works), and Inno Setup 6. The installer is the x64
-PySide6 build only (`murmur.spec` stops otherwise); on a Windows on ARM PC, build with an x64
-Python (`winget install -e --id Python.Python.3.12 --architecture x64`, then `py -V:3.12`; the
-ARM64 one is `-V:3.12-arm64`), which runs emulated:
+Needs Windows 10/11, Python 3.12 (3.11+ works), and Inno Setup 6. It builds for the architecture
+of the Python running it:
+
+| Python | Build | Qt | Output |
+|---|---|---|---|
+| x64 | x64 (also runs emulated on ARM) | PySide6 (LGPL) | `dist\MurmurSetup-<version>.exe` |
+| native ARM64 | ARM64 | PyQt6 (GPL) | `dist\arm64\MurmurSetup-<version>-arm64.exe` |
 
 ```bat
 winget install -e --id JRSoftware.InnoSetup --scope user
-py -3.12 scripts\build_installer.py
+py -V:3.12 scripts\build_installer.py
+py -V:3.12-arm64 scripts\build_installer.py
 ```
+
+(`py -V:3.12` is the x64 Python where both are installed; on an ARM PC install it with
+`winget install -e --id Python.Python.3.12 --architecture x64`.) Each architecture has its own
+`build-venv`/`build-venv-arm64`, `build\pyinstaller[-arm64]` and dist folder, so the two builds
+never mix.
 
 That, from a clean checkout:
 
@@ -89,6 +99,10 @@ dist\MurmurSetup-0.3.0.exe /VERYSILENT /SUPPRESSMSGBOXES /TASKS=startup /LOG=ins
 & "$env:TEMP\mh\AppData\Local\Programs\Murmur\Murmur.exe" --selftest "$env:TEMP\mst"
 & "$env:TEMP\mh\AppData\Local\Programs\Murmur\unins000.exe" /VERYSILENT
 ```
+
+To skip the 460 MB download, put a copy of the model in `$env:TEMP\mh\.murmur\models` first: a
+copy, not a junction, as Inno Setup 6.7 runs with RedirectionGuard, which doesn't follow junctions
+a normal user made (setup then sees no model and downloads it).
 
 Don't start the installed `Murmur.exe` without `--selftest` while another Murmur is running: it
 would just bring the running one's window up (single instance), or with none running, install its
@@ -147,17 +161,33 @@ would need a hook in `__main__.py`/the window, which other work owns: on `load_f
 `FileNotFoundError` when frozen, show a "Download the speech model (460 MB)" action that runs
 `scripts/fetch_model.py`'s logic on a thread with a progress signal, then calls `App.load` again.
 
-### Qt binding: PySide6 only
+### Qt binding: one per build
 
 The code imports Qt through qtpy, which imports whichever binding is installed (PyQt5, PySide2,
 PyQt6, then PySide6), so PyInstaller sees all four. PyInstaller's `hook-qtpy` keeps one, by
 `QT_API` or else in that order: in a venv with PyQt6 as well it kept PyQt6, the build then had no
-Qt at all, and it still "succeeded". So `murmur.spec` sets `QT_API=pyside6`, excludes the other
-three bindings, and stops if no PySide6 ended up in the bundle; the launcher sets `QT_API=pyside6`
-before qtpy loads (a `QT_API` in the user's environment would otherwise send qtpy to the other
-bindings first, or fail on a name it doesn't know). qtpy's optional `PySide6.QtOpenGL` import is
-in a `try`, so trimming that module is still fine. `requirements.txt` (PySide6) is the x64 file;
-native ARM64 Python uses `requirements-arm64.txt` (PyQt6), which the installer never sees.
+Qt at all, and it still "succeeded". So `murmur.spec` picks the binding by the build Python's
+platform (PySide6 on x64, PyQt6 on ARM64, as ARM64's PySide6 has no Qt WebEngine), sets `QT_API`
+to it, excludes the other three, and stops if the binding didn't end up in the bundle. The frozen
+app gets the same `QT_API` from a runtime hook the spec writes (`qt_api.py`), which runs before
+anything imports qtpy, so a `QT_API` in the user's environment (Spyder, IPython) can't send qtpy to
+a binding that isn't there. qtpy's optional `QtOpenGL` import is in a `try`, so trimming that
+module is still fine. The trimming works on both layouts: PySide6 keeps Qt flat in `PySide6/`,
+PyQt6 under `PyQt6/Qt6/` with the DLLs in `bin/` (`QT_DIR`, `QT_DLL_DIR` in the spec).
+
+### ARM64 build
+
+Measured on a Snapdragon X (X1-26-100, Python 3.12.10 ARM64, PyQt6 6.11 with Qt 6.11.2):
+`dist\arm64\Murmur` is 331 MB, the setup 88 MB, built in 203 s; every PE file is ARM64 except
+four x86/x64 PortAudio DLLs sounddevice always ships (unused). The frozen self-test and the
+installed app's both pass, transcribing at RTF 0.04-0.07 (the x64 build emulated there: ~0.15).
+A silent install takes 11 s; uninstalling removes the app, shortcuts and the Apps entry.
+
+The ARM64 setup carries PyQt6, which is GPL v3 (or commercial): published, that build must be
+offered under the GPL, with its source (this repository, at the release's tag) and the GPL text.
+The x64 build is PySide6 (LGPL) as before. Smart App Control (on by default on new Copilot+ PCs)
+let the unsigned, locally built `Murmur.exe` and setup run; a downloaded one, carrying the
+Mark of the Web, may still be blocked or warned about until it's signed (see Code signing).
 
 ### comtypes in the frozen app
 

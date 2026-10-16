@@ -1,4 +1,4 @@
-# PyInstaller spec for Murmur.exe, a one-folder (onedir) build in dist/Murmur.
+# PyInstaller spec for Murmur.exe, a one-folder (onedir) build in dist/Murmur (dist/arm64/Murmur).
 # Run it through scripts/build_installer.py, which also builds the installer around it.
 #
 # Trimmed of the parts of Qt that Murmur doesn't use (QML, Qt Quick modules, translations, the
@@ -17,20 +17,30 @@ ROOT = Path(SPECPATH).parent
 TRIM = os.environ.get("MURMUR_NO_TRIM") != "1"
 VERSION = re.search(r'^VERSION = "([\d.]+)"', (ROOT / "murmur" / "ui" / "window.py").read_text("utf-8"), re.M)[1]
 
-# The installer is the x64 PySide6 (LGPL) build. ARM64's PySide6 has no Qt WebEngine, and PyQt6
-# (GPL) isn't shipped; an ARM64 PC builds it with x64 Python (py -V:3.12), which runs emulated.
-if sysconfig.get_platform() != "win-amd64":
-    raise SystemExit(f"Build the installer with x64 Python, not {sysconfig.get_platform()} "
-                     "(see docs/INSTALLER.md)")
-if importlib.util.find_spec("PySide6") is None:
-    raise SystemExit("PySide6 isn't installed in the build venv (requirements.txt has it)")
+# The build is for the architecture of the Python running it: x64 with PySide6 (LGPL), native
+# ARM64 with PyQt6 (GPL), as ARM64's PySide6 has no Qt WebEngine (requirements-arm64.txt).
+PLATFORM = sysconfig.get_platform()
+if PLATFORM not in ("win-amd64", "win-arm64"):
+    raise SystemExit(f"Build with x64 or ARM64 Python, not {PLATFORM}")
+BINDING = "PyQt6" if PLATFORM == "win-arm64" else "PySide6"
+if importlib.util.find_spec(BINDING) is None:
+    raise SystemExit(f"{BINDING} isn't installed in the build venv (installer/requirements-build*.txt)")
+# Where the binding keeps Qt in the bundle: PySide6 all in its folder, PyQt6 under Qt6/ with the
+# DLLs in bin/.
+QT_DIR = {"PySide6": "PySide6/", "PyQt6": "PyQt6/Qt6/"}[BINDING]
+QT_DLL_DIR = {"PySide6": "PySide6/", "PyQt6": "PyQt6/Qt6/bin/"}[BINDING]
 
 # qtpy imports whichever Qt binding is there, so PyInstaller sees all four. Its hook-qtpy keeps one,
 # by QT_API or else in the order PyQt5, PySide2, PyQt6, PySide6: with PyQt6 installed as well it
-# kept PyQt6, which the excludes below then dropped, leaving no Qt at all. Pick PySide6 for the
+# kept PyQt6, which the excludes below then dropped, leaving no Qt at all. Pick the binding for the
 # hook and exclude the others outright.
-os.environ["QT_API"] = "pyside6"
-OTHER_BINDINGS = ["PyQt5", "PySide2", "PyQt6"]
+os.environ["QT_API"] = BINDING.lower()
+OTHER_BINDINGS = [b for b in ("PyQt5", "PySide2", "PyQt6", "PySide6") if b != BINDING]
+# And the frozen app sets it too, before anything imports qtpy, so a QT_API left in the user's
+# environment (Spyder, IPython) can't send qtpy looking for a binding that isn't there.
+Path(workpath).mkdir(parents=True, exist_ok=True)
+qt_api_hook = Path(workpath) / "qt_api.py"
+qt_api_hook.write_text(f'import os\nos.environ["QT_API"] = "{BINDING.lower()}"\n', encoding="utf-8")
 
 # spacing.py loads UI Automation with comtypes.client.GetModule("UIAutomationCore.dll"), which
 # on first use generates wrapper modules into comtypes.gen. Generate them now, in the build
@@ -39,7 +49,7 @@ import comtypes.client  # noqa: E402
 
 comtypes.client.GetModule("UIAutomationCore.dll")
 
-# PySide6 modules Murmur doesn't import. (QtPrintSupport stays: QtWebEngineWidgets imports it.)
+# Qt modules Murmur doesn't import. (QtPrintSupport stays: QtWebEngineWidgets imports it.)
 # qtpy tries QtDataVisualization (on import) and QtOpenGLWidgets (qtpy.QtWidgets) and does
 # without them.
 UNUSED_QT = ["QtOpenGL", "QtPositioning", "QtQml", "QtQuick", "QtQuickWidgets",
@@ -54,18 +64,19 @@ a = Analysis(
     datas=[(str(ROOT / "murmur" / "ui" / "web"), "murmur/ui/web"),
            (str(ROOT / "assets"), "assets")],
     hiddenimports=collect_submodules("comtypes.gen"),
-    excludes=["tkinter", "pytest"] + OTHER_BINDINGS + ([f"PySide6.{m}" for m in UNUSED_QT] if TRIM else []),
+    runtime_hooks=[str(qt_api_hook)],
+    excludes=["tkinter", "pytest"] + OTHER_BINDINGS + ([f"{BINDING}.{m}" for m in UNUSED_QT] if TRIM else []),
 )
-if not any(dest.replace("\\", "/").startswith("PySide6/") for dest, _, _ in a.binaries):
-    raise SystemExit("No PySide6 in the bundle: check QT_API and hook-qtpy's warnings above")
+if not any(dest.replace("\\", "/").startswith(f"{BINDING}/") for dest, _, _ in a.binaries):
+    raise SystemExit(f"No {BINDING} in the bundle: check QT_API and hook-qtpy's warnings above")
 
 
 def unused(dest: str) -> bool:
     """Qt files Murmur doesn't need, by their path in the bundle."""
     d = dest.replace("\\", "/")
-    if not d.startswith("PySide6/"):
+    if not d.startswith(QT_DIR):
         return False
-    d = d[len("PySide6/"):]
+    d = d[len(QT_DIR):]
     name = d.rsplit("/", 1)[-1]
     return (
         d.startswith("qml/")  # QML modules: the window is a widget, not Qt Quick
@@ -80,11 +91,11 @@ def unused(dest: str) -> bool:
 
 def prune_unlinked_qt(binaries, datas):
     """Drops Qt DLLs that nothing kept loads, now that QML and the unused modules are gone.
-    Plugins, .pyd modules, QtWebEngineProcess.exe and everything outside PySide6/ are kept and
-    are the roots."""
+    Plugins, .pyd modules, QtWebEngineProcess.exe and everything outside the Qt DLL folder are
+    kept and are the roots."""
     def is_qt_dll(dest):
-        d = dest.replace("\\", "/").lower()
-        return d.startswith("pyside6/qt6") and d.endswith(".dll") and "/" not in d[len("pyside6/"):]
+        d, folder = dest.replace("\\", "/").lower(), QT_DLL_DIR.lower()
+        return d.startswith(folder + "qt6") and d.endswith(".dll") and "/" not in d[len(folder):]
 
     def imports(path):
         pe = pefile.PE(path, fast_load=True)

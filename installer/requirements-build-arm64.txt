@@ -1,0 +1,5 @@
+# What scripts/build_installer.py installs into build-venv-arm64 with native ARM64 Python: the
+# app's packages (PyQt6) plus PyInstaller.
+-r ../requirements-arm64.txt
+pyinstaller==6.22.3
+pyinstaller-hooks-contrib==2026.7

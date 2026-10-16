@@ -127,7 +127,9 @@ app at github.com/rohitsinghcoder/Murmur; keep behaviour in parity with its Kotl
 ## Windows quirks
 - Qt comes through qtpy: PySide6 (LGPL) on x64, PyQt6 on Windows on ARM, whose PySide6 wheels
   have no Qt WebEngine (up to 6.12; PySide6-WebEngine's win_arm64 wheel is empty). PyQt6 is GPL,
-  so the x64 installer stays PySide6 (`murmur.spec` pins `QT_API=pyside6`). `requirements.txt` is
+  so the x64 installer stays PySide6; the ARM64 one (built with ARM64 Python) is PyQt6 and so GPL.
+  `murmur.spec` picks the binding by the build Python and pins `QT_API` to it, in the frozen app
+  too (a runtime hook), see docs/INSTALLER.md. `requirements.txt` is
   x64 (PySide6), `requirements-arm64.txt` native ARM64 (PyQt6), both on `requirements-base.txt`;
   setup.bat picks by the venv's `sysconfig.get_platform()`. Not markers: `platform_machine` is the
   PC's, so x64 Python on ARM would get x64 PyQt6, which Smart App Control blocks (unsigned).

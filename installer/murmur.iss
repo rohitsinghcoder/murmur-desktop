@@ -15,6 +15,10 @@
 #ifndef SourceDir
   #define SourceDir "..\dist\Murmur"
 #endif
+; x64 or arm64: what SourceDir was built for (build_installer.py passes /DArch).
+#ifndef Arch
+  #define Arch "x64"
+#endif
 
 #define ModelName "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
 #define ModelUrl "https://github.com/k2-fsa/sherpa-onnx/releases/download/asr-models/" + ModelName + ".tar.bz2"
@@ -40,8 +44,14 @@ PrivilegesRequired=lowest
 DefaultDirName={localappdata}\Programs\Murmur
 DisableDirPage=yes
 DisableProgramGroupPage=yes
+; The same AppId for both: on an ARM PC the ARM64 build replaces an x64 one, and the other way round.
+#if Arch == "arm64"
+ArchitecturesAllowed=arm64
+ArchitecturesInstallIn64BitMode=arm64
+#else
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
+#endif
 ; Windows 10 1809 or later (tar.exe, which unpacks the model, is in Windows since 1803).
 MinVersion=10.0.17763
 WizardStyle=modern dynamic
@@ -49,7 +59,11 @@ WizardSmallImageFile=..\assets\murmur.png
 SetupIconFile=..\assets\murmur.ico
 UninstallDisplayIcon={app}\Murmur.exe
 UninstallDisplayName=Murmur
+#if Arch == "arm64"
+OutputBaseFilename=MurmurSetup-{#AppVersion}-arm64
+#else
 OutputBaseFilename=MurmurSetup-{#AppVersion}
+#endif
 Compression=lzma2/max
 SolidCompression=yes
 ; Room for the unpacked model, which isn't one of the [Files] (it also makes the size in

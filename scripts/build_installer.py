@@ -2,6 +2,10 @@
 
     py -3.12 scripts\\build_installer.py [--no-test] [--skip-pyinstaller]
 
+It builds for the architecture of the Python running it: x64 (PySide6) as above, or with native
+ARM64 Python (py -V:3.12-arm64) the ARM64 build (PyQt6), in build-venv-arm64/, dist/arm64/ and
+dist/arm64/MurmurSetup-<version>-arm64.exe.
+
 1. Creates build-venv/ (with the Python running this script) holding the app's packages and
    PyInstaller (installer/requirements-build.txt). The repo's .venv isn't touched.
 2. Freezes Murmur with PyInstaller (installer/murmur.spec) into dist/Murmur.
@@ -18,14 +22,20 @@ import re
 import shutil
 import subprocess
 import sys
+import sysconfig
 import tempfile
 import time
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
-VENV = ROOT / "build-venv"
+ARM64 = sysconfig.get_platform() == "win-arm64"
+# Each architecture in its own venv and dist folder, so one build never picks up the other's.
+VENV = ROOT / ("build-venv-arm64" if ARM64 else "build-venv")
 VENV_PY = VENV / "Scripts" / "python.exe"
-DIST = ROOT / "dist"
+REQUIREMENTS = ROOT / "installer" / ("requirements-build-arm64.txt" if ARM64 else "requirements-build.txt")
+DIST = ROOT / "dist" / "arm64" if ARM64 else ROOT / "dist"
+WORK = ROOT / "build" / ("pyinstaller-arm64" if ARM64 else "pyinstaller")
+SETUP_SUFFIX = "-arm64" if ARM64 else ""
 MODEL_NAME = "sherpa-onnx-nemo-parakeet-tdt-0.6b-v2-int8"
 
 
@@ -45,12 +55,12 @@ def build_venv():
             sys.exit("Run this with Python 3.11 or newer (3.12 recommended): py -3.12 scripts\\build_installer.py")
         run(sys.executable, "-m", "venv", VENV)
         run(VENV_PY, "-m", "pip", "install", "--quiet", "--upgrade", "pip")
-    run(VENV_PY, "-m", "pip", "install", "--quiet", "-r", ROOT / "installer" / "requirements-build.txt")
+    run(VENV_PY, "-m", "pip", "install", "--quiet", "-r", REQUIREMENTS)
 
 
 def pyinstaller():
     run(VENV_PY, "-m", "PyInstaller", "--noconfirm", "--clean", "--log-level", "WARN",
-        "--distpath", DIST, "--workpath", ROOT / "build" / "pyinstaller", ROOT / "installer" / "murmur.spec")
+        "--distpath", DIST, "--workpath", WORK, ROOT / "installer" / "murmur.spec")
 
 
 def selftest() -> bool:
@@ -60,7 +70,7 @@ def selftest() -> bool:
     if not (model / "tokens.txt").exists():
         print(f"Skipping the self-test: no model in {model} (scripts/fetch_model.py downloads it).")
         return True
-    out = ROOT / "build" / "selftest"
+    out = ROOT / "build" / ("selftest-arm64" if ARM64 else "selftest")
     shutil.rmtree(out, ignore_errors=True)
     home = Path(tempfile.mkdtemp(prefix="murmur-home-"))
     try:
@@ -107,17 +117,17 @@ def main():
         sys.exit("Inno Setup 6 wasn't found. Install it with\n"
                  "    winget install -e --id JRSoftware.InnoSetup --scope user\n"
                  "or from https://jrsoftware.org/isdl.php, then run this again.")
-    print(f"Building Murmur {ver}")
+    print(f"Building Murmur {ver} for {'ARM64' if ARM64 else 'x64'}")
     t0 = time.perf_counter()
     if not args.skip_pyinstaller:
         build_venv()
         pyinstaller()
-    print(f"dist/Murmur: {folder_mb(DIST / 'Murmur'):.0f} MB")
+    print(f"{(DIST / 'Murmur').relative_to(ROOT)}: {folder_mb(DIST / 'Murmur'):.0f} MB")
     if not args.no_test and not selftest():
         sys.exit("The frozen build failed its self-test; not building the installer.")
     run(iscc, "/Q", f"/DAppVersion={ver}", f"/DSourceDir={DIST / 'Murmur'}", f"/O{DIST}",
-        ROOT / "installer" / "murmur.iss")
-    setup = DIST / f"MurmurSetup-{ver}.exe"
+        f"/DArch={'arm64' if ARM64 else 'x64'}", ROOT / "installer" / "murmur.iss")
+    setup = DIST / f"MurmurSetup-{ver}{SETUP_SUFFIX}.exe"
     print(f"\n{setup}: {setup.stat().st_size / 2**20:.0f} MB (built in {time.perf_counter() - t0:.0f} s)")
 
 

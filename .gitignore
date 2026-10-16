@@ -7,3 +7,4 @@ dist/
 build/
 .claude/
 build-venv/
+build-venv-arm64/
